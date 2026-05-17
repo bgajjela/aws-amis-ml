@@ -26,6 +26,11 @@ EOF
     || echo "(env not found)"
 
   echo ""
+  echo "--- Python 3.12 (${VARIANT}-py312 env) ---"
+  /opt/nix/envs/${VARIANT}-py312/bin/python -m pip list --format=columns 2>/dev/null \
+    || echo "(env not found)"
+
+  echo ""
   echo "--- Python 3.13 (${VARIANT}-py313 env) ---"
   /opt/nix/envs/${VARIANT}-py313/bin/python -m pip list --format=columns 2>/dev/null \
     || echo "(env not found)"

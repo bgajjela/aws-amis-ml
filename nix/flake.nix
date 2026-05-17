@@ -2,9 +2,9 @@
   description = "Base/Pro Python environments via Nix";
 
   inputs = {
-    # nixos-25.05 (May 2025): patches CVE-2025-32434 (PyTorch 2.6+), CVE-2025-21587/21502 (JDK 17.0.15+),
-    # CVE-2025-48009 (Pillow 11.2.1+), CVE-2025-59268 (NumPy 2.2.6+), Go 1.24.x, Spark 3.5.4+.
-    # nixpkgs-unstable removed: Python 3.13 is in 25.05 stable, eliminating the floating unpinned ref.
+    # nixos-25.05 (May 2025): patches CVE-2025-32434 (PyTorch 2.6+), CVE-2025-21587/21502 (JDK 21.0.7+),
+    # CVE-2025-48009 (Pillow 11.2.1+), CVE-2025-59268 (NumPy 2.2.6+), Go 1.24.x, Spark 3.5.5+.
+    # Python 3.11/3.12/3.13 all in stable; nixpkgs-unstable eliminated.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
   };
 
@@ -68,7 +68,7 @@
           julia     = pkgs.julia-bin or pkgs.julia;
           R         = pkgs.R;
           go        = pkgs.go;
-          java      = pkgs.openjdk17;
+          java      = pkgs.openjdk21;
           spark     = pkgs.apacheSpark;
 
           env-report-base = pkgs.writeShellScriptBin "env-report-base" ''

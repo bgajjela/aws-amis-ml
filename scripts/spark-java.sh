@@ -1,13 +1,12 @@
-# Spark/Java environment for all shells
-# Defaults to Python 3.13 env; override PYSPARK_PYTHON if desired
+# Spark/Java environment for all shells (Java 21 LTS)
 export JAVA_HOME=/opt/nix/langs/java
 export SPARK_HOME=/opt/nix/langs/spark
 export PATH="$SPARK_HOME/bin:$JAVA_HOME/bin:$PATH"
 
-# Default PySpark interpreter (can be overridden by user)
+# Default PySpark interpreter — override with PYSPARK_PYTHON env var
 export PYSPARK_PYTHON=${PYSPARK_PYTHON:-/opt/nix/envs/base/bin/python}
 
-# Helper aliases (optional; comment out to disable)
+# Per-version PySpark aliases
 alias pyspark311='PYSPARK_PYTHON=/opt/nix/envs/base/bin/python pyspark'
-alias pyspark313='PYSPARK_PYTHON=/opt/nix/envs/base/bin/python pyspark'
-
+alias pyspark312='PYSPARK_PYTHON=/opt/nix/envs/base-py312/bin/python pyspark'
+alias pyspark313='PYSPARK_PYTHON=/opt/nix/envs/base-py313/bin/python pyspark'
