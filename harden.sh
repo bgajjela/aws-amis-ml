@@ -275,9 +275,16 @@ install dccp /bin/true
 install sctp /bin/true
 install rds  /bin/true
 install tipc /bin/true
+
+# CVE-2026-31431 (Copy Fail) — local privilege escalation via AF_ALG AEAD socket.
+# Affects kernels 4.14–6.19.12. Interim mitigation per CIS guidance until vendor
+# kernel patch is confirmed running (patch installs via unattended-upgrades but
+# requires a reboot to activate). algif_aead is not required by any workload on
+# this AMI: PyTorch/TF/OpenSSL use userspace crypto, not the kernel AF_ALG socket.
+install algif_aead /bin/true
 EOF
 # Unload any of these already loaded (best-effort; most won't be loaded on a fresh AMI)
-for mod in cramfs freevxfs jffs2 hfs hfsplus udf usb-storage dccp sctp rds tipc; do
+for mod in cramfs freevxfs jffs2 hfs hfsplus udf usb-storage dccp sctp rds tipc algif_aead; do
   sudo rmmod "$mod" 2>/dev/null || true
 done
 

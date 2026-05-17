@@ -115,11 +115,26 @@ build {
   name    = "cpu-ds-ml-base"
   sources = ["source.amazon-ebs.ubuntu_base"]
 
+  # Reboot after kernel upgrade so the patched kernel is running when the AMI
+  # is snapshotted. Without this, apt-get upgrade installs a new kernel package
+  # but the old kernel remains active — CVE patches that require a new kernel
+  # (e.g. CVE-2026-31431) are installed but not yet effective in the AMI.
   provisioner "shell" {
     inline = [
       "sudo apt-get update",
       # Apply all Ubuntu security patches (OpenSSL, curl, glibc, systemd, etc.) before installing anything
       "sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y",
+      # Reboot into the patched kernel before continuing — ensures kernel-level CVE
+      # fixes (e.g. CVE-2026-31431 algif_aead) are active in the final AMI snapshot
+      "sudo reboot || true",
+    ]
+    expect_disconnect = true
+  }
+
+  provisioner "shell" {
+    pause_before = "30s"
+    inline = [
+      "echo 'Resumed after reboot — kernel: $(uname -r)'",
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
