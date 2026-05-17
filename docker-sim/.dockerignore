@@ -1,0 +1,13 @@
+# Exclude git metadata and local build outputs from the build context
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+result
+result-* 
+tmp
+build
+.direnv
+.venv
+node_modules
+*.log
