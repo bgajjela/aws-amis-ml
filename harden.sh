@@ -169,6 +169,27 @@ sudo systemctl daemon-reload || true
 sudo systemctl daemon-reexec || true
 
 # ==============================
+# Global Environment Variables (/etc/environment)
+# ==============================
+# /etc/environment is read by PAM (pam_env) for ALL sessions — interactive login,
+# non-interactive SSH (ssh host 'cmd'), sudo, and cron. Unlike /etc/profile.d/,
+# it does not require a login shell, so JAVA_HOME is available everywhere.
+#
+# JAVA_HOME: needed by any script that references $JAVA_HOME/bin/java directly
+#   (Gradle wrapper, Maven, Ant, custom build scripts). The /usr/local/bin/java
+#   symlink covers the 'java' command but not $JAVA_HOME references.
+# SPARK_HOME / SPARK_LOCAL_DIRS: set here so systemd services (Jupyter, MLflow)
+#   that spawn spark-submit inherit the correct paths without a profile.d source.
+sudo tee /etc/environment >/dev/null <<'EOF'
+JAVA_HOME=/opt/nix/langs/java
+SPARK_HOME=/opt/nix/langs/spark
+SPARK_LOCAL_DIRS=/opt/spark-local
+EOF
+# Note: /etc/environment uses KEY=VALUE syntax (no 'export', no shell expansion).
+# PATH is intentionally omitted — PAM merges /etc/environment into the session
+# environment but PATH is managed separately by /etc/profile and /etc/profile.d/.
+
+# ==============================
 # Filesystem & Directory Hardening (CIS L2)
 # ==============================
 

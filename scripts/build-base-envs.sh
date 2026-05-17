@@ -172,4 +172,49 @@ WRAPPER
 done
 
 echo ""
+echo "=== Installing newenv helper ==="
+
+# newenv: creates a user-owned venv layered on a Nix base env so customers
+# can pip install packages without touching the immutable system envs.
+# Usage: newenv py311 ~/myproject   → creates ~/myproject with py311 packages
+#        newenv py312 ./analysis
+sudo tee /usr/local/bin/newenv >/dev/null <<'SCRIPT'
+#!/bin/sh
+set -e
+PYVER="${1:-py311}"
+DEST="${2:-.venv}"
+
+case "${PYVER}" in
+  py311) BASE=/opt/nix/envs/base        ;;
+  py312) BASE=/opt/nix/envs/base-py312  ;;
+  py313) BASE=/opt/nix/envs/base-py313  ;;
+  pro311) BASE=/opt/nix/envs/pro        ;;
+  pro312) BASE=/opt/nix/envs/pro-py312  ;;
+  pro313) BASE=/opt/nix/envs/pro-py313  ;;
+  *)
+    echo "Usage: newenv <py311|py312|py313|pro311|pro312|pro313> [dest-dir]"
+    echo "  Creates a venv layered on the chosen Nix env so you can pip install freely."
+    exit 1
+    ;;
+esac
+
+if [ ! -d "${BASE}" ]; then
+  echo "Error: base env not found at ${BASE}" >&2
+  exit 1
+fi
+
+echo "Creating venv at ${DEST} (base: ${BASE})"
+"${BASE}/bin/python" -m venv --system-site-packages "${DEST}"
+"${DEST}/bin/pip" install --upgrade pip --quiet
+echo ""
+echo "Done. Activate with:"
+echo "  source ${DEST}/bin/activate"
+echo ""
+echo "Then pip install freely:"
+echo "  pip install your-package"
+SCRIPT
+sudo chmod 755 /usr/local/bin/newenv
+echo "  /usr/local/bin/newenv (helper to create user venvs)"
+
+echo ""
 echo "Base envs built and linked successfully."
