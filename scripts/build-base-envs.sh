@@ -116,12 +116,60 @@ _link "${LANGS}/R/bin/R"                 /usr/local/bin/R
 _link "${LANGS}/R/bin/Rscript"           /usr/local/bin/Rscript
 _link "${LANGS}/go/bin/go"               /usr/local/bin/go
 _link "${LANGS}/java/bin/java"           /usr/local/bin/java
-_link "${LANGS}/spark/bin/spark-submit"  /usr/local/bin/spark-submit
-_link "${LANGS}/spark/bin/pyspark"       /usr/local/bin/pyspark
 _link "${LANGS}/rustc/bin/rustc"         /usr/local/bin/rustc
 _link "${LANGS}/cargo/bin/cargo"         /usr/local/bin/cargo
 _link "${LANGS}/nodejs/bin/node"         /usr/local/bin/node
 _link "${LANGS}/nodejs/bin/npm"          /usr/local/bin/npm
+
+# ── Spark wrapper scripts ─────────────────────────────────────────────────────
+# Wrappers rather than symlinks so JAVA_HOME, SPARK_HOME, SPARK_LOCAL_DIRS, and
+# PYSPARK_PYTHON are always set regardless of shell type (scripts, cron, ssh
+# non-interactive, Jupyter kernels, systemd services). Profile.d is login-shell-only.
+
+echo ""
+echo "=== Creating Spark wrapper scripts ==="
+
+# spark-submit: always has SPARK_HOME + JAVA_HOME in env
+sudo tee /usr/local/bin/spark-submit >/dev/null <<WRAPPER
+#!/bin/sh
+JAVA_HOME=/opt/nix/langs/java
+SPARK_HOME=/opt/nix/langs/spark
+SPARK_LOCAL_DIRS=/opt/spark-local
+export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS
+exec "\${SPARK_HOME}/bin/spark-submit" "\$@"
+WRAPPER
+sudo chmod 755 /usr/local/bin/spark-submit
+echo "  /usr/local/bin/spark-submit (wrapper)"
+
+# pyspark: defaults PYSPARK_PYTHON to base env but honours caller override
+sudo tee /usr/local/bin/pyspark >/dev/null <<WRAPPER
+#!/bin/sh
+JAVA_HOME=/opt/nix/langs/java
+SPARK_HOME=/opt/nix/langs/spark
+SPARK_LOCAL_DIRS=/opt/spark-local
+PYSPARK_PYTHON=\${PYSPARK_PYTHON:-/opt/nix/envs/base/bin/python}
+export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
+exec "\${SPARK_HOME}/bin/pyspark" "\$@"
+WRAPPER
+sudo chmod 755 /usr/local/bin/pyspark
+echo "  /usr/local/bin/pyspark (wrapper, default py311)"
+
+# pyspark311/312/313: version-pinned wrappers — work in scripts, cron, ssh, Jupyter
+for ver_env in "311:/opt/nix/envs/base" "312:/opt/nix/envs/base-py312" "313:/opt/nix/envs/base-py313"; do
+  ver="${ver_env%%:*}"
+  env_path="${ver_env##*:}"
+  sudo tee "/usr/local/bin/pyspark${ver}" >/dev/null <<WRAPPER
+#!/bin/sh
+JAVA_HOME=/opt/nix/langs/java
+SPARK_HOME=/opt/nix/langs/spark
+SPARK_LOCAL_DIRS=/opt/spark-local
+PYSPARK_PYTHON=${env_path}/bin/python
+export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
+exec "\${SPARK_HOME}/bin/pyspark" "\$@"
+WRAPPER
+  sudo chmod 755 "/usr/local/bin/pyspark${ver}"
+  echo "  /usr/local/bin/pyspark${ver} -> ${env_path}"
+done
 
 echo ""
 echo "Base envs built and linked successfully."

@@ -97,4 +97,39 @@ if [[ "${FAILED}" -ne 0 ]]; then
 fi
 
 echo ""
+echo "=== Updating pyspark wrapper scripts to point to pro envs ==="
+
+# Overwrite the base-env wrappers created by build-base-envs.sh so that
+# pyspark311/312/313 use the pro venvs (torch/tf/transformers included).
+# pyspark (bare) also updated to default to pro env.
+for ver_env in "311:/opt/nix/envs/pro" "312:/opt/nix/envs/pro-py312" "313:/opt/nix/envs/pro-py313"; do
+  ver="${ver_env%%:*}"
+  env_path="${ver_env##*:}"
+  sudo tee "/usr/local/bin/pyspark${ver}" >/dev/null <<WRAPPER
+#!/bin/sh
+JAVA_HOME=/opt/nix/langs/java
+SPARK_HOME=/opt/nix/langs/spark
+SPARK_LOCAL_DIRS=/opt/spark-local
+PYSPARK_PYTHON=${env_path}/bin/python
+export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
+exec "\${SPARK_HOME}/bin/pyspark" "\$@"
+WRAPPER
+  sudo chmod 755 "/usr/local/bin/pyspark${ver}"
+  echo "  /usr/local/bin/pyspark${ver} -> ${env_path}"
+done
+
+# Bare pyspark defaults to pro py311 env on the pro AMI
+sudo tee /usr/local/bin/pyspark >/dev/null <<WRAPPER
+#!/bin/sh
+JAVA_HOME=/opt/nix/langs/java
+SPARK_HOME=/opt/nix/langs/spark
+SPARK_LOCAL_DIRS=/opt/spark-local
+PYSPARK_PYTHON=\${PYSPARK_PYTHON:-/opt/nix/envs/pro/bin/python}
+export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
+exec "\${SPARK_HOME}/bin/pyspark" "\$@"
+WRAPPER
+sudo chmod 755 /usr/local/bin/pyspark
+echo "  /usr/local/bin/pyspark (default -> pro py311)"
+
+echo ""
 echo "Pro envs built successfully."

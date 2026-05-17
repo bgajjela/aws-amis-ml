@@ -1,19 +1,19 @@
 # shellcheck shell=bash
-# Spark/Java environment for all shells (Java 21 LTS)
+# Spark/Java environment for interactive login shells (Java 21 LTS).
+#
+# JAVA_HOME, SPARK_HOME, SPARK_LOCAL_DIRS, and PYSPARK_PYTHON are also
+# embedded directly in the /usr/local/bin/spark-submit, pyspark, pyspark311,
+# pyspark312, pyspark313 wrapper scripts — so those commands work in ALL
+# contexts (scripts, cron, ssh non-interactive, Jupyter kernels, systemd)
+# without sourcing this file.
 export JAVA_HOME=/opt/nix/langs/java
 export SPARK_HOME=/opt/nix/langs/spark
 export PATH="$SPARK_HOME/bin:$JAVA_HOME/bin:$PATH"
 
-# Default PySpark interpreter — override with PYSPARK_PYTHON env var
+# Default PySpark interpreter — override with PYSPARK_PYTHON env var.
+# Also set in /usr/local/bin/pyspark wrapper so it applies outside login shells.
 export PYSPARK_PYTHON=${PYSPARK_PYTHON:-/opt/nix/envs/base/bin/python}
 
-# Spark shuffle / local storage on EBS, not tmpfs.
-# /tmp is a tmpfs (nosuid,nodev,noexec,size=25% of RAM). Spark shuffle data
-# can exceed that limit on large jobs and is also blocked by noexec.
-# /opt/spark-local is on the EBS root volume (24 GB default, expandable).
+# Spark shuffle on EBS, not tmpfs (/tmp is noexec + size-capped).
+# Also embedded in each wrapper script.
 export SPARK_LOCAL_DIRS=/opt/spark-local
-
-# Per-version PySpark aliases
-alias pyspark311='PYSPARK_PYTHON=/opt/nix/envs/base/bin/python pyspark'
-alias pyspark312='PYSPARK_PYTHON=/opt/nix/envs/base-py312/bin/python pyspark'
-alias pyspark313='PYSPARK_PYTHON=/opt/nix/envs/base-py313/bin/python pyspark'
