@@ -16,11 +16,118 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   - Elevated ulimits (login shells + systemd defaults)
 - Minimal PySpark examples in `/usr/share/examples/spark`
 
+## Build Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  packer build -only=cpu-ds-ml-base                            ~35–50 min    │
+│                                                                             │
+│  Ubuntu 22.04 (Canonical AMI)                                               │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 1 · apt bootstrap                          ~5 min     │            │
+│  │  curl, jq, git-lfs, unzip, awscli v2 (PGP-verified),       │            │
+│  │  auditd, fail2ban, ufw, chrony, unattended-upgrades         │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 2 · CIS hardening (harden.sh)              ~2 min     │            │
+│  │  114 CIS Ubuntu 22.04 L1+L2 controls, SSH, kernel sysctl,  │            │
+│  │  AppArmor, auditd immutable rules, AIDE init, UFW           │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 3 · Nix daemon install                     ~2 min     │            │
+│  │  Pinned installer (nix-2.24.9), multi-user daemon,         │            │
+│  │  flake lock, pulls from cache.nixos.org                     │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 4 · Parallel Nix builds (build-base-envs.sh) ~8 min  │            │
+│  │                                                             │            │
+│  │   py-base ──┐                                              │            │
+│  │   py312   ──┤                                              │            │
+│  │   py313   ──┤                                              │            │
+│  │   julia   ──┼──► all 12 builds fire simultaneously        │            │
+│  │   R       ──┤    (download-bound, not CPU-bound)          │            │
+│  │   go      ──┤    wait + fail-fast if any build errors     │            │
+│  │   java    ──┤                                              │            │
+│  │   spark   ──┤                                              │            │
+│  │   rustc   ──┤                                              │            │
+│  │   cargo   ──┤                                              │            │
+│  │   nodejs  ──┘                                              │            │
+│  │                                                             │            │
+│  │  → /opt/nix/envs/{base,base-py312,base-py313}              │            │
+│  │  → /opt/nix/langs/{java,spark,julia,R,go,rustc,cargo,node} │            │
+│  │  → /usr/local/bin/{py311,py312,py313,java,spark-submit,...} │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 5 · ami-finalize.sh                        ~1 min     │            │
+│  │  Package manifest, CycloneDX SBOM, EULA, MOTD,             │            │
+│  │  scrub: SSH host keys, cloud-init, bash history, logs,     │            │
+│  │  machine-id reset                                           │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  BASE AMI  (cpu-ds-ml-ubuntu-2204-base-<ts>)   tagged Role=dsml             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  packer build -only=cpu-ds-ml-pro              (run AFTER base) ~20–25 min  │
+│                                                                             │
+│  data "amazon-ami" "base"                                                   │
+│  → auto-discovers latest base AMI by name + tag                             │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 1 · Parallel pip installs (build-pro-envs.sh) ~18 min │            │
+│  │                                                             │            │
+│  │   py311: venv --system-site-packages ──┐                   │            │
+│  │   py312: venv --system-site-packages ──┼──► 3 pip jobs     │            │
+│  │   py313: venv --system-site-packages ──┘   in parallel     │            │
+│  │                                                             │            │
+│  │   Each installs:                                            │            │
+│  │     torch / torchvision / torchaudio  (CPU wheels ~200 MB) │            │
+│  │     tensorflow-cpu                    (pre-built ~600 MB)  │            │
+│  │     transformers / datasets / tokenizers / accelerate      │            │
+│  │     mlflow / xgboost / lightgbm                            │            │
+│  │                                                             │            │
+│  │  → /opt/nix/envs/{pro,pro-py312,pro-py313}                 │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐            │
+│  │  Step 2 · ami-finalize.sh                        ~1 min     │            │
+│  │  Package manifest (all 3 envs), SBOM, EULA, MOTD, scrub    │            │
+│  └─────────────────────────────────────────────────────────────┘            │
+│         │                                                                   │
+│         ▼                                                                   │
+│  PRO AMI  (cpu-ds-ml-ubuntu-2204-pro-<ts>)     tagged Role=dsml             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Build time summary (c6i.xlarge, Spot):
+  Base AMI:  ~35–50 min   (apt 5 + harden 2 + Nix daemon 2 + parallel Nix 8 + finalize 1)
+  Pro AMI:   ~20–25 min   (parallel pip 18 + finalize 1, skips all base work)
+  Total:     ~55–75 min   (sequential) or ~35–50 min (base + pro overlap if Spot available)
+
+Cost estimate at Spot (~$0.05/hr for c6i.xlarge):
+  Base:  ~$0.04    Pro:  ~$0.02    Total: ~$0.06 per full build cycle
+```
+
 ## Structure
 - `packer.pkr.hcl` — Packer template (amazon-ebs) producing base and pro AMIs
 - `nix/flake.nix` — Nix flake defining Python envs and toolchains
 - `harden.sh` — OS hardening script (CIS-aligned)
 - `scripts/` — helpers
+  - `build-base-envs.sh` — parallel Nix builds for all base envs + toolchains
+  - `build-pro-envs.sh` — parallel pip installs for pro DL packages
+  - `ami-finalize.sh` — manifest, SBOM, EULA, MOTD, AMI scrub (runs last)
   - `spark-java.sh` — system profile for JAVA_HOME/SPARK_HOME/PYSPARK_PYTHON
 - `examples/` — minimal PySpark examples
 - `USAGE.md` — runtime usage and quick commands
@@ -47,8 +154,10 @@ packer build -only=cpu-ds-ml-pro .
 ```
 
 Notes:
-- Instance type defaults to `m6i.large` for builds.
+- Instance type defaults to `c6i.xlarge` (4 vCPU / 8 GB). Use `c6i.2xlarge` for faster builds.
+- Set `spot_price = "auto"` in your vars file to cut build cost by ~70%.
 - The template copies the flake and locks it in-place before building envs.
+- Always build base first; the pro build auto-discovers it via `data "amazon-ami" "base"`.
 
 ## Runtime Usage (on the AMI)
 See `USAGE.md` for full details. Quick checks:

@@ -161,6 +161,10 @@ build {
     destination = "/tmp/spark-java.sh"
   }
   provisioner "file" {
+    source      = "scripts/build-base-envs.sh"
+    destination = "/tmp/build-base-envs.sh"
+  }
+  provisioner "file" {
     source      = "examples/pyspark_basic.py"
     destination = "/tmp/pyspark_basic.py"
   }
@@ -179,48 +183,24 @@ build {
       "sudo chmod +x /tmp/harden.sh",
       "sudo systemctl daemon-reload",
       "sudo /tmp/harden.sh",
-      
       "sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh",
     ]
   }
 
-  # Build the Nix-based Python env for base
+  # Build all Nix envs + language toolchains in parallel (~6-10 min vs ~25-30 min sequential).
+  # All packages pull from cache.nixos.org binary cache so builds are mostly download-bound.
   provisioner "shell" {
     inline = [
-      "sudo mkdir -p /opt/nix/flake /opt/nix/envs",
+      "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix flake lock /opt/nix/flake'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/envs/base /opt/nix/flake#py-base'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/envs/base-py312 /opt/nix/flake#py-base-py312'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/envs/base-py313 /opt/nix/flake#py-base-py313'",
-      "sudo mkdir -p /opt/nix/langs",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/python313 /opt/nix/flake#python313'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/julia /opt/nix/flake#julia'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/R /opt/nix/flake#R'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/go /opt/nix/flake#go'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/java /opt/nix/flake#java'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/spark /opt/nix/flake#spark'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/rustc /opt/nix/flake#rustc'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/cargo /opt/nix/flake#cargo'",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/nodejs /opt/nix/flake#nodejs'",
-      "if [ -x /opt/nix/envs/base/bin/python ]; then sudo ln -sf /opt/nix/envs/base/bin/python /usr/local/bin/py311; fi",
-      "if [ -x /opt/nix/envs/base-py312/bin/python ]; then sudo ln -sf /opt/nix/envs/base-py312/bin/python /usr/local/bin/py312; elif ls /opt/nix/envs/base-py312/bin/python3.* >/dev/null 2>&1; then sudo ln -sf $(ls /opt/nix/envs/base-py312/bin/python3.* | head -n1) /usr/local/bin/py312; fi",
-      "if [ -x /opt/nix/envs/base-py313/bin/python ]; then sudo ln -sf /opt/nix/envs/base-py313/bin/python /usr/local/bin/py313; elif ls /opt/nix/envs/base-py313/bin/python3.* >/dev/null 2>&1; then sudo ln -sf $(ls /opt/nix/envs/base-py313/bin/python3.* | head -n1) /usr/local/bin/py313; fi",
-      "if [ -x /opt/nix/langs/julia/bin/julia ]; then sudo ln -sf /opt/nix/langs/julia/bin/julia /usr/local/bin/julia; fi",
-      "if [ -x /opt/nix/langs/R/bin/R ]; then sudo ln -sf /opt/nix/langs/R/bin/R /usr/local/bin/R; fi",
-      "if [ -x /opt/nix/langs/R/bin/Rscript ]; then sudo ln -sf /opt/nix/langs/R/bin/Rscript /usr/local/bin/Rscript; fi",
-      "if [ -x /opt/nix/langs/go/bin/go ]; then sudo ln -sf /opt/nix/langs/go/bin/go /usr/local/bin/go; fi",
-      "if [ -x /opt/nix/langs/java/bin/java ]; then sudo ln -sf /opt/nix/langs/java/bin/java /usr/local/bin/java; fi",
-      "if [ -x /opt/nix/langs/spark/bin/spark-submit ]; then sudo ln -sf /opt/nix/langs/spark/bin/spark-submit /usr/local/bin/spark-submit; fi",
-      "if [ -x /opt/nix/langs/spark/bin/pyspark ]; then sudo ln -sf /opt/nix/langs/spark/bin/pyspark /usr/local/bin/pyspark; fi",
-      "if [ -x /opt/nix/langs/rustc/bin/rustc ]; then sudo ln -sf /opt/nix/langs/rustc/bin/rustc /usr/local/bin/rustc; fi",
-      "if [ -x /opt/nix/langs/cargo/bin/cargo ]; then sudo ln -sf /opt/nix/langs/cargo/bin/cargo /usr/local/bin/cargo; fi",
-      "if [ -x /opt/nix/langs/nodejs/bin/node ]; then sudo ln -sf /opt/nix/langs/nodejs/bin/node /usr/local/bin/node; sudo ln -sf /opt/nix/langs/nodejs/bin/npm /usr/local/bin/npm; fi",
+      "sudo chmod +x /tmp/build-base-envs.sh",
+      "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
       "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
       "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
       "sudo chmod 0644 /usr/share/examples/spark/pyspark_*.py",
-      # Smoke tests: fail fast if runtimes are missing
+      # Smoke tests: fail fast if any runtime is missing
       "nix --version",
       "/usr/local/bin/py311 -V",
       "/usr/local/bin/py312 -V",
@@ -302,8 +282,14 @@ variable "spot_price"       { default = "" }          # set "auto" to use Spot
 variable "root_volume_size" { default = 24 }          # extra headroom for Nix store + pip wheels
 variable "subnet_id"           { default = "" }
 variable "security_group_id"   { default = "" }
-variable "associate_public_ip" { type = bool; default = true }
-variable "encrypt_ebs"         { type = bool; default = true }
+variable "associate_public_ip" {
+  type    = bool
+  default = true
+}
+variable "encrypt_ebs" {
+  type    = bool
+  default = true
+}
 variable "kms_key_id"          { default = "" }
 # Comma-separated list of additional regions to copy the AMI into after build.
 # Example: ["us-west-2","eu-west-1","ap-southeast-1"]
