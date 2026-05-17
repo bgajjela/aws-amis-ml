@@ -175,6 +175,9 @@ cat <<'NOTICE'
  |   Reverse engineering or redistribution is prohibited.    |
  |   Full terms: /usr/share/BUILD_INFO/EULA.txt              |
  +------------------------------------------------------------+
+ |  Build: $(cat /usr/share/BUILD_INFO 2>/dev/null || echo unknown)
+ |  Security advisories: /usr/share/BUILD_INFO/SECURITY.md   |
+ +------------------------------------------------------------+
 
 NOTICE
 EOF
@@ -183,6 +186,16 @@ sudo chmod 755 /etc/update-motd.d/99-ami-notice
 # Disable the default Ubuntu "welcome" noise to keep MOTD clean
 sudo chmod -x /etc/update-motd.d/10-help-text 2>/dev/null || true
 sudo chmod -x /etc/update-motd.d/50-motd-news 2>/dev/null || true
+
+# ==============================
+# Security Advisory (baked in — MOTD points here)
+# ==============================
+# Copy the repo SECURITY.md into the AMI so customers can read advisories
+# and remediation steps without needing internet access.
+if [ -f /tmp/SECURITY.md ]; then
+  sudo cp /tmp/SECURITY.md /usr/share/BUILD_INFO/SECURITY.md
+  sudo chmod 644 /usr/share/BUILD_INFO/SECURITY.md
+fi
 
 # ==============================
 # Disk Space Cleanup

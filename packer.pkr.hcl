@@ -250,6 +250,10 @@ build {
     source      = "scripts/ami-finalize.sh"
     destination = "/tmp/ami-finalize.sh"
   }
+  provisioner "file" {
+    source      = "SECURITY.md"
+    destination = "/tmp/SECURITY.md"
+  }
   provisioner "shell" {
     inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh base"]
   }
@@ -305,6 +309,10 @@ build {
   provisioner "file" {
     source      = "scripts/ami-finalize.sh"
     destination = "/tmp/ami-finalize.sh"
+  }
+  provisioner "file" {
+    source      = "SECURITY.md"
+    destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
     inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh pro"]
