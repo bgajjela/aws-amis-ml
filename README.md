@@ -1,20 +1,37 @@
 # CPU DS/ML AMI (Ubuntu 22.04) — Hardened + Nix Managed
 
-This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workloads on CPU, with fully reproducible language/runtime environments managed by Nix.
+CIS-hardened Ubuntu 22.04 AMI for CPU-based data science and ML workloads.
+Reproducible language environments via Nix. Built for AWS Marketplace.
 
 ## Highlights
-- Nix-managed envs under `/opt/nix` with symlinks in `/usr/local/bin`:
-  - Python: 3.11, 3.12, 3.13 (base and pro envs)
-  - Java 17 (OpenJDK), Apache Spark (spark-submit, pyspark)
-  - Julia, R, Go
-- Security hardening (CIS-aligned Level 2):
-  - SSH hardened (no passwords/root), strong crypto, legal banners
-  - UFW default deny inbound with rate-limited SSH
-  - sysctl kernel/network hardening, tmpfs for /tmp and /var/tmp, hardened /dev/shm
-  - AppArmor enforcing, auditd immutable rules, AIDE initialized
-  - logrotate compression, journald persistent+compressed with size caps
-  - Elevated ulimits (login shells + systemd defaults)
-- Minimal PySpark examples in `/usr/share/examples/spark`
+
+**Runtimes — all accessible without Nix commands, in any shell context**
+- Python 3.11 / 3.12 / 3.13 → `py311`, `py312`, `py313`
+- Java 21 LTS (OpenJDK/Temurin) → `java`
+- Apache Spark → `spark-submit`, `pyspark`, `pyspark311`, `pyspark312`, `pyspark313`
+- Julia, R/Rscript, Go, Rust/Cargo, Node.js/npm
+- All commands are wrapper scripts or symlinks in `/usr/local/bin` — work in scripts, cron, SSH non-interactive, Jupyter kernels, and systemd services
+
+**Pro AMI adds** (layers on base, ~22 min extra)
+- PyTorch (CPU), TensorFlow CPU, Transformers, Datasets, Tokenizers, Accelerate
+- XGBoost, LightGBM, MLflow — across all three Python versions
+- ML kernel tuning: BBR TCP, 128 MB socket buffers, THP madvise, nofile=1M, vm.swappiness=1
+
+**Security — CIS Ubuntu 22.04 L1+L2: 114 PASS · 0 FAIL · 1 WARN**
+- SSH: key-only, no root, chacha20/aes-gcm, login banner
+- UFW: default deny inbound, SSH rate-limited via fail2ban
+- Filesystem: `/tmp` + `/var/tmp` tmpfs (nosuid/nodev/noexec, size=25%/10% RAM); `/dev/shm` hardened
+- Logging: auditd (640 MB cap, rotated); journald (500 MB cap, 2-week retention, compressed)
+- IMDSv2 enforced; EBS encrypted at rest (KMS); AppArmor enforcing; AIDE initialized
+- Boot footprint: multipathd, fwupd, snapd, apport, iscsid, motd-news disabled — saves ~5–8s per boot
+- On-demand scanner: `sudo ami-scan` (Trivy CVE + OpenSCAP CIS) — no boot hooks, no auto-run
+
+**Compliance**
+- CIS Hardened (114 controls), CycloneDX SBOM baked in
+- AWS Standard Contract for AWS Marketplace
+- ECCN 5D002.c.1, License Exception ENC (export classification baked into each AMI)
+
+---
 
 ## Build Architecture
 
@@ -23,7 +40,7 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   ═══════════════════════════════════════════════════════════════════════════════
 
   ╔══════════════════════════════════════════════════════════════════════════╗
-  ║  ▶  BASE AMI  ·  packer build -only=cpu-ds-ml-base  ·  ~35–50 min      ║
+  ║  ▶  BASE AMI  ·  packer build -only=cpu-ds-ml-base  ·  ~20–24 min      ║
   ╠══════════════════════════════════════════════════════════════════════════╣
   ║                                                                          ║
   ║   SOURCE  ──  Ubuntu 22.04 LTS  (Canonical  ·  ami-0*jammy-amd64)      ║
@@ -34,8 +51,7 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   ║   │  curl · jq · git-lfs · unzip · gnupg · build-essential │░          ║
   ║   │  ufw · auditd · fail2ban · chrony · unattended-upgrades │░          ║
   ║   │  openscap-scanner · trivy v0.70.0 (pinned)              │░          ║
-  ║   │  awscli v2  (PGP-verified  ·  no curl|sh)               │░          ║
-  ║   │  Nix 2.24.9 multi-user daemon  (pinned installer)       │░          ║
+  ║   │  awscli v2  (PGP-verified)  ·  Nix 2.24.9 (pinned)     │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
   ║                           │                                              ║
@@ -44,15 +60,17 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
   ║   │  ┌─────────────────────┐  ┌─────────────────────────┐  │░          ║
   ║   │  │  §1-2  Filesystem   │  │  §3    Network          │  │░          ║
-  ║   │  │  tmpfs · modules    │  │  sysctl · UFW · sysctl  │  │░          ║
+  ║   │  │  tmpfs · modules    │  │  sysctl · UFW · BBR     │  │░          ║
   ║   │  │  AIDE  · AppArmor   │  │  martians · SYN cookies │  │░          ║
   ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
   ║   │  ┌─────────────────────┐  ┌─────────────────────────┐  │░          ║
   ║   │  │  §4    Logging      │  │  §5    Access           │  │░          ║
-  ║   │  │  auditd  (bounded)  │  │  SSH · PAM · faillock   │  │░          ║
+  ║   │  │  auditd  (640 MB)   │  │  SSH · PAM · faillock   │  │░          ║
   ║   │  │  logrotate+maxsize  │  │  sudo · password aging  │  │░          ║
   ║   │  │  journald+keepfree  │  │  TMOUT · wheel group    │  │░          ║
   ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
+  ║   │  service audit: multipathd · fwupd · snapd · iscsid     │░          ║
+  ║   │  apport · motd-news · timesyncd  disabled/masked        │░          ║
   ║   │                  114 controls  ·  0 FAIL  ·  1 WARN     │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
@@ -67,26 +85,29 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   ║   │   julia          ──────────────────────────────┤ wait  │░          ║
   ║   │   R              ──────────────────────────────┤  all  │░          ║
   ║   │   go             ──────────────────────────────┤  12   │░          ║
-  ║   │   java (JDK 21)  ──────────────────────────────┤       │░          ║
+  ║   │   java 21 LTS    ──────────────────────────────┤       │░          ║
   ║   │   spark          ──────────────────────────────┤       │░          ║
   ║   │   rustc · cargo  ──────────────────────────────┤       │░          ║
   ║   │   nodejs 22 LTS  ──────────────────────────────┘       │░          ║
   ║   │                                                         │░          ║
   ║   │   all 12 fire simultaneously  ·  cache.nixos.org        │░          ║
-  ║   │   download-bound  ·  fail-fast on any error             │░          ║
+  ║   │   download-bound  ·  fail-fast per job                  │░          ║
   ║   │                                                         │░          ║
   ║   │   → /opt/nix/envs/{base,base-py312,base-py313}         │░          ║
   ║   │   → /opt/nix/langs/{java,spark,julia,R,go,rustc,...}   │░          ║
   ║   │   → /usr/local/bin/{py311,py312,py313,java,go,...}     │░          ║
+  ║   │   → /usr/local/bin/{pyspark,pyspark311/312/313,        │░          ║
+  ║   │                      spark-submit}  (wrapper scripts)   │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
   ║                           │                                              ║
   ║   ┌───────────────────────▼────────────────────────────────┐  ~1 min   ║
   ║   │  4  AMI FINALIZE  (ami-finalize.sh)                     │░          ║
   ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
-  ║   │  packages.txt  ·  CycloneDX SBOM  ·  EULA  ·  MOTD    │░          ║
-  ║   │  nix GC + store optimise  ·  pip cache purge           │░          ║
-  ║   │  SSH host keys  ·  cloud-init clean  ·  machine-id     │░          ║
+  ║   │  packages.txt  ·  CycloneDX SBOM  ·  EULA (AWS SC)    │░          ║
+  ║   │  EAR-classification.txt  ·  MOTD                        │░          ║
+  ║   │  nix GC  ·  pip/apt/trivy cache purge                   │░          ║
+  ║   │  SSH host keys  ·  cloud-init clean  ·  machine-id      │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
   ║                           │                                              ║
@@ -103,7 +124,7 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
                            │  of apt / hardening / Nix work  (~1.5h saved)
                            │
   ╔══════════════════════════════════════════════════════════════════════════╗
-  ║  ▶  PRO AMI   ·  packer build -only=cpu-ds-ml-pro   ·  ~20–25 min      ║
+  ║  ▶  PRO AMI   ·  packer build -only=cpu-ds-ml-pro   ·  ~22–27 min      ║
   ╠══════════════════════════════════════════════════════════════════════════╣
   ║                                                                          ║
   ║   SOURCE  ──  BASE AMI  (hardened  ·  Nix envs intact  ·  all tools)   ║
@@ -125,11 +146,33 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   ║   │                                                         │░          ║
   ║   │   inherits base: numpy · pandas · pyspark · sklearn    │░          ║
   ║   │   → /opt/nix/envs/{pro,pro-py312,pro-py313}            │░          ║
+  ║   │   → pyspark311/312/313 wrappers updated to pro envs    │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
   ║                           │                                              ║
   ║   ┌───────────────────────▼────────────────────────────────┐  ~1 min   ║
-  ║   │  2  AMI FINALIZE  (ami-finalize.sh)                     │░          ║
+  ║   │  2  ML PERFORMANCE TUNING  (tune-pro.sh)                │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │  vm.swappiness=1  ·  vfs_cache_pressure=50             │░          ║
+  ║   │  TCP BBR+fq  ·  128 MB socket buffers  ·  inotify 512K │░          ║
+  ║   │  THP madvise (systemd oneshot at boot)                  │░          ║
+  ║   │  nofile=1M  ·  nproc=65536  ·  memlock=unlimited        │░          ║
+  ║   │  NVMe scheduler=none  ·  OMP/OpenBLAS/MKL threads=nproc │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~1 min   ║
+  ║   │  3  COMPUTE SMOKE TESTS  (smoke-pro.sh)                 │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │  torch matmul + autograd  ·  tf matmul                  │░          ║
+  ║   │  XGBoost/LightGBM fit  ·  PySpark session + agg        │░          ║
+  ║   │  transformers tokenizer round-trip                       │░          ║
+  ║   │  runs py311 · py312 · py313  ·  aborts build on fail    │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~1 min   ║
+  ║   │  4  AMI FINALIZE  (ami-finalize.sh)                     │░          ║
   ║   │  packages.txt (all 3 envs)  ·  SBOM  ·  EULA  ·  scrub │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
@@ -146,80 +189,185 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
   ├─────────────────────┬──────────────────────────────┬────────────────────┤
   │  AMI                │  Wall-clock time             │  Cost at Spot      │
   ├─────────────────────┼──────────────────────────────┼────────────────────┤
-  │  Base               │  ~35–50 min                  │  ~$0.04            │
-  │  Pro (after base)   │  ~20–25 min                  │  ~$0.02            │
-  │  Both (sequential)  │  ~55–75 min                  │  ~$0.06            │
+  │  Base               │  ~20–24 min                  │  ~$0.024           │
+  │  Pro (after base)   │  ~22–27 min                  │  ~$0.027           │
+  │  Both (sequential)  │  ~42–51 min                  │  ~$0.051           │
   ├─────────────────────┴──────────────────────────────┴────────────────────┤
+  │  Boot time (RunInstances → SSH ready): ~20–30s                          │
   │  On-demand scan: sudo ami-scan  ·  results → /var/log/ami-scan/         │
   └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Structure
-- `packer.pkr.hcl` — Packer template (amazon-ebs) producing base and pro AMIs
-- `nix/flake.nix` — Nix flake defining Python envs and toolchains
-- `harden.sh` — OS hardening script (CIS-aligned)
-- `scripts/` — helpers
-  - `build-base-envs.sh` — parallel Nix builds for all base envs + toolchains
-  - `build-pro-envs.sh` — parallel pip installs for pro DL packages
-  - `ami-finalize.sh` — manifest, SBOM, EULA, MOTD, AMI scrub (runs last)
-  - `spark-java.sh` — system profile for JAVA_HOME/SPARK_HOME/PYSPARK_PYTHON
-- `examples/` — minimal PySpark examples
-- `USAGE.md` — runtime usage and quick commands
-- `SECURITY_REPORT.md` — hardened controls and verification steps
-- `listing/` & `legal/` — marketplace listing content and license/notice templates
+---
+
+## Repository Structure
+
+```
+.
+├── packer.pkr.hcl          Packer template — base and pro amazon-ebs builds
+├── harden.sh               CIS L1+L2 hardening (114 controls), service audit
+├── nix/
+│   └── flake.nix           Nix flake — Python envs + toolchains (nixos-25.05)
+├── scripts/
+│   ├── build-base-envs.sh  12 parallel Nix builds + wrapper scripts in /usr/local/bin
+│   ├── build-pro-envs.sh   3 parallel pip installs + pro pyspark wrapper updates
+│   ├── tune-pro.sh         ML kernel/network/limits tuning (pro only)
+│   ├── smoke-pro.sh        Compute-level smoke tests — torch/tf/xgb/spark/tokenizers
+│   ├── ami-scan.sh         On-demand CVE (Trivy) + CIS (OpenSCAP) scanner
+│   ├── ami-finalize.sh     Manifest, SBOM, EULA, EAR notice, GC, AMI scrub
+│   └── spark-java.sh       /etc/profile.d — JAVA_HOME/SPARK_HOME for login shells
+├── examples/
+│   └── spark/              pyspark_basic.py, pyspark_pi.py
+├── tests/
+│   └── cis-check.sh        Static CIS compliance check (CI gate)
+├── legal/
+│   ├── ATTRIBUTIONS.tpl.md Per-package OSS license table
+│   ├── NOTICE.tpl.md       OSS notice template
+│   ├── EAR-classification.md  ECCN 5D002.c.1 self-classification + BIS filing guide
+│   └── product-long.md     (see listing/)
+├── listing/
+│   ├── product-long.md     AWS Marketplace product description
+│   └── quickstart.md       Marketplace quick-start guide
+├── USAGE.md                Runtime usage and quick commands
+├── SECURITY_REPORT.md      Hardening controls and verification steps
+└── Makefile                validate · fmt · test (shellcheck + CIS check)
+```
+
+---
 
 ## Building
-Prereqs: Packer with amazon plugin, AWS creds to build AMIs.
 
-Validate and inspect:
+**Prerequisites:** Packer with amazon plugin, AWS credentials.
+
 ```bash
 packer init .
 packer validate .
 packer inspect .
 ```
 
-Build base only (example):
 ```bash
+# Build base first (always required before pro)
 packer build -only=cpu-ds-ml-base .
-```
-Build pro only (example):
-```bash
+
+# Build pro (auto-discovers latest base AMI via data source)
 packer build -only=cpu-ds-ml-pro .
 ```
 
-Notes:
-- Instance type defaults to `c6i.xlarge` (4 vCPU / 8 GB). Use `c6i.2xlarge` for faster builds.
-- Set `spot_price = "auto"` in your vars file to cut build cost by ~70%.
-- The template copies the flake and locks it in-place before building envs.
-- Always build base first; the pro build auto-discovers it via `data "amazon-ami" "base"`.
+**Variables** (`vars.example.pkrvars.hcl` → copy to `vars.pkrvars.hcl`):
 
-## Runtime Usage (on the AMI)
-See `USAGE.md` for full details. Quick checks:
+| Variable | Default | Notes |
+|---|---|---|
+| `instance_type` | `c6i.xlarge` | Use `c6i.2xlarge` for ~30% faster Nix builds |
+| `spot_price` | `""` | Set `"auto"` to cut build cost ~70% |
+| `root_volume_size` | `24` | GB; increase for large pip caches |
+| `encrypt_ebs` | `true` | EBS encryption at rest |
+| `kms_key_id` | `""` | CMK ARN; empty = AWS-managed key |
+| `additional_regions` | `[]` | List of regions to copy AMI into after build |
+
+---
+
+## Runtime Usage
+
+All commands work without sourcing any profile or running Nix commands:
+
 ```bash
+# Python
 py311 -V && py312 -V && py313 -V
-java -version && spark-submit --version
-nix flake show /opt/nix/flake
+
+# Other toolchains
+julia -e 'println(VERSION)'
+R --version && go version && rustc --version && node --version
+
+# Spark
+spark-submit --version
+java -version
 ```
 
-PySpark (choose interpreter):
+**PySpark — version-pinned wrappers** (base AMI uses base envs; pro AMI uses pro envs):
 ```bash
-# Python 3.13
-PYSPARK_PYTHON=/opt/nix/envs/base-py313/bin/python pyspark
-# Python 3.12
+pyspark311       # Python 3.11 + full base/pro env
+pyspark312       # Python 3.12
+pyspark313       # Python 3.13
+pyspark          # default (py311 env)
+
+# Override interpreter for bare pyspark:
 PYSPARK_PYTHON=/opt/nix/envs/base-py312/bin/python pyspark
-# Python 3.11
-PYSPARK_PYTHON=/opt/nix/envs/base/bin/python pyspark
 ```
+
+These wrappers embed `JAVA_HOME`, `SPARK_HOME`, `SPARK_LOCAL_DIRS`, and `PYSPARK_PYTHON` — they work correctly in scripts, cron, SSH non-interactive sessions, and Jupyter kernels without any setup.
+
+**On-demand security scan:**
+```bash
+sudo ami-scan              # CVE (Trivy) + CIS (OpenSCAP)  ~5–8 min
+sudo ami-scan --cve        # CVE only  ~2–3 min
+sudo ami-scan --cis        # CIS only  ~3–5 min
+sudo ami-scan --json       # machine-readable output
+sudo ami-scan --out /tmp/scan   # write results to custom dir
+# Results and symlinks to latest: /var/log/ami-scan/
+```
+
+**Build artifacts on each instance:**
+```bash
+cat /usr/share/BUILD_INFO               # AMI version
+cat /usr/share/BUILD_INFO/packages.txt  # all pip + dpkg packages
+cat /usr/share/BUILD_INFO/sbom.cyclonedx.json   # CycloneDX SBOM
+cat /usr/share/BUILD_INFO/EULA.txt              # license terms
+cat /usr/share/BUILD_INFO/EAR-classification.txt # export classification
+```
+
+---
 
 ## Security Notes
-- AIDE DB is initialized; run `sudo aide --check` to verify integrity
-- UFW is active; open only the ports you need
+
+- **AIDE:** DB initialized at build time. Run `sudo aide --check` to verify filesystem integrity.
+- **UFW:** Default deny inbound. Open only the ports you need: `sudo ufw allow <port>`.
+- **auditd:** Logs rotate at 32 MB, 20 files max (640 MB cap). Check with `sudo ausearch -k <key>`.
+- **ami-scan:** Not run at boot or on a schedule — invoke manually when you need a current CVE or CIS report.
+- **Boot services:** `multipathd`, `fwupd`, `snapd`, `apport`, `iscsid`, `motd-news`, `systemd-timesyncd` are disabled/masked. Re-enable any with `sudo systemctl unmask --now <service>` if needed.
+- **IMDSv2:** Required on all instances. The `http_put_response_hop_limit = 1` blocks container-to-host metadata theft.
+
+---
+
+## Pro AMI — Performance Profile
+
+Applied by `tune-pro.sh` at build time; active on every boot:
+
+| Area | Setting | Effect |
+|---|---|---|
+| Memory | `vm.swappiness=1` | Tensors stay in RAM; no swap to EBS |
+| Memory | `vm.vfs_cache_pressure=50` | DataLoader inode cache stays hot |
+| Memory | THP `madvise` (systemd oneshot) | PyTorch/TF tensor TLB benefit; no compaction spikes |
+| Network | BBR + fq, 128 MB buffers | S3 ingestion ~10–12 Gbps vs ~4–6 Gbps baseline |
+| Limits | `nofile=1M`, `nproc=65536` | Spark executors + DataLoader workers don't hit fd limits |
+| Limits | `memlock=unlimited` | Large embedding tables; future GPU pinned memory |
+| Storage | NVMe `scheduler=none` (udev) | Removes software queue overhead on Nitro NVMe |
+| Threading | `OMP/OpenBLAS/MKL=nproc` | Prevents thread storms from bare NumPy scripts |
+| Spark | `SPARK_LOCAL_DIRS=/opt/spark-local` | Shuffle on EBS, not tmpfs (noexec + size-capped) |
+
+---
 
 ## Customization
-- Extend `nix/flake.nix` with additional packages or overlays
-- Add/adjust hardening in `harden.sh` per your policies
-- Add more examples under `/usr/share/examples`
 
-## License and Notices
-This distribution packages and configures upstream open-source software. See `legal/ATTRIBUTIONS.tpl.md` and `legal/NOTICE.tpl.md`. On-instance, see `/usr/share/OSS_NOTICES.md` and use the env report commands in `USAGE.md` for dependency enumeration.
-# aws-amis-ml
+- **Add packages:** extend `nix/flake.nix` with additional Nix attrs or pip deps
+- **Harden further:** edit `harden.sh`; re-run `make test` to verify CIS compliance
+- **Examples:** add scripts under `/usr/share/examples/`
+- **Multi-region:** set `additional_regions = ["us-west-2", "eu-west-1"]` in vars
+
+---
+
+## License and Compliance
+
+This AMI is licensed under the **AWS Standard Contract for AWS Marketplace**.
+Full terms: <https://aws.amazon.com/marketplace/pp/prodview-standard-contract>
+
+Open-source components (PyTorch, TensorFlow, Spark, Ubuntu packages, Nix derivations)
+remain under their respective upstream licenses. See:
+- `legal/ATTRIBUTIONS.tpl.md` — per-package license table
+- `legal/NOTICE.tpl.md` — OSS notice
+- `legal/EAR-classification.md` — ECCN 5D002.c.1 self-classification record
+
+On each running instance:
+- `/usr/share/BUILD_INFO/packages.txt` — full package list
+- `/usr/share/BUILD_INFO/sbom.cyclonedx.json` — CycloneDX SBOM
+- `/usr/share/OSS_NOTICES.md` — OSS attributions
+- `/usr/share/BUILD_INFO/EAR-classification.txt` — export classification notice
