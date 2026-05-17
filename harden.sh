@@ -188,7 +188,15 @@ ConditionPathIsSymbolicLink=!/tmp
 What=tmpfs
 Where=/tmp
 Type=tmpfs
-Options=mode=1777,strictatime,nosuid,nodev,noexec
+# size=2G: without an explicit cap, tmpfs defaults to 50% of RAM (4 GB on 8 GB
+# instances). Spark shuffle, pip downloads, and Nix builds all write to /tmp;
+# an unbounded tmpfs can exhaust RAM under concurrent workloads.
+Options=mode=1777,strictatime,nosuid,nodev,noexec,size=25%
+# size=25%: percentage of physical RAM, not disk. Scales automatically:
+#   c6i.xlarge  ( 8 GB RAM) → 2 GB   c6i.2xlarge (16 GB) → 4 GB
+#   c6i.4xlarge (32 GB RAM) → 8 GB   c6i.8xlarge (64 GB) → 16 GB
+# Fixed size=2G would prevent Spark shuffle on larger instances and is
+# unnecessarily restrictive. Spark local dirs are on EBS — see spark-java.sh.
 
 [Install]
 WantedBy=multi-user.target
@@ -207,7 +215,7 @@ ConditionPathIsSymbolicLink=!/var/tmp
 What=tmpfs
 Where=/var/tmp
 Type=tmpfs
-Options=mode=1777,strictatime,nosuid,nodev,noexec
+Options=mode=1777,strictatime,nosuid,nodev,noexec,size=10%
 
 [Install]
 WantedBy=multi-user.target
@@ -313,6 +321,43 @@ EOF
 sudo sysctl --system >/dev/null 2>&1 || true
 
 # ==============================
+# Base Performance Tuning
+# ==============================
+# Conservative tuning that benefits any server workload: reduced swap pressure,
+# smarter writeback, larger network buffers, deeper inotify watch limits.
+# Security sysctl files (99-cis-*.conf) take higher precedence where they overlap.
+sudo tee /etc/sysctl.d/60-base-perf.conf >/dev/null <<'EOF'
+# ── Memory ────────────────────────────────────────────────────────────────────
+# Swap only under real memory pressure; EBS-backed swap is slow and hurts
+# any workload that loses data from RAM unexpectedly.
+vm.swappiness = 10
+
+# Allow up to 40% of RAM as dirty before blocking writers;
+# start background writeback at 10%. Reduces latency spikes on
+# large sequential writes (dataset saves, model checkpoints).
+vm.dirty_ratio = 40
+vm.dirty_background_ratio = 10
+
+# ── Network ───────────────────────────────────────────────────────────────────
+# Larger socket listen backlog for Jupyter, MLflow, REST API servers.
+net.core.somaxconn = 65535
+net.core.netdev_max_backlog = 5000
+net.ipv4.tcp_max_syn_backlog = 8192
+
+# Reclaim TIME_WAIT sockets faster; ML jobs open many short-lived connections
+# to S3, SageMaker endpoints, and package mirrors.
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_tw_reuse = 1
+
+# ── Filesystem ────────────────────────────────────────────────────────────────
+# Jupyter, MLflow, and PyTorch DataLoader use inotify to watch dataset dirs.
+# Default kernel limit (8192) is too low for repos with large file trees.
+fs.inotify.max_user_watches = 131072
+fs.inotify.max_user_instances = 512
+EOF
+sudo sysctl --system >/dev/null 2>&1 || true
+
+# ==============================
 # Auditd Hardening (CIS)
 # ==============================
 sudo tee /etc/audit/rules.d/99-hardening.rules >/dev/null <<'EOF'
@@ -392,12 +437,36 @@ find / -xdev \( -perm -4000 -o -perm -2000 \) -type f 2>/dev/null | \
   sudo tee /etc/audit/rules.d/99-privileged.rules >/dev/null
 
 # CIS 4.1.2: auditd storage and overflow settings
-sudo sed -i 's/^max_log_file_action.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf || true
-sudo sed -i 's/^space_left_action.*/space_left_action = email/'          /etc/audit/auditd.conf || true
-sudo sed -i 's/^action_mail_acct.*/action_mail_acct = root/'            /etc/audit/auditd.conf || true
+#
+# max_log_file_action = rotate (not keep_logs): keep_logs ignores num_logs per the
+# auditd man page, so audit logs grow unbounded until disk fills and halt triggers.
+# rotate + num_logs = 20 caps audit log storage at ~640 MB (20 × 32 MB).
+# disk_full_action = halt is CIS-required and kept — the bounded log size ensures
+# disk fills only from other sources, giving operators time to respond.
+sudo sed -i 's/^max_log_file_action.*/max_log_file_action = rotate/' /etc/audit/auditd.conf || true
+
+# Cap individual audit log file size and total number of retained files
+grep -q '^max_log_file\b' /etc/audit/auditd.conf \
+  && sudo sed -i 's/^max_log_file\b.*/max_log_file = 32/'    /etc/audit/auditd.conf \
+  || echo 'max_log_file = 32'    | sudo tee -a /etc/audit/auditd.conf >/dev/null
+grep -q '^num_logs\b' /etc/audit/auditd.conf \
+  && sudo sed -i 's/^num_logs\b.*/num_logs = 20/'             /etc/audit/auditd.conf \
+  || echo 'num_logs = 20'        | sudo tee -a /etc/audit/auditd.conf >/dev/null
+
+# space_left_action = syslog: email requires an MTA which is not installed;
+# silent failure means the operator never learns the disk is filling.
+sudo sed -i 's/^space_left_action.*/space_left_action = syslog/'         /etc/audit/auditd.conf || true
 sudo sed -i 's/^admin_space_left_action.*/admin_space_left_action = halt/' /etc/audit/auditd.conf || true
-sudo sed -i 's/^disk_full_action.*/disk_full_action = halt/'             /etc/audit/auditd.conf || true
-sudo sed -i 's/^disk_error_action.*/disk_error_action = halt/'           /etc/audit/auditd.conf || true
+sudo sed -i 's/^disk_full_action.*/disk_full_action = halt/'              /etc/audit/auditd.conf || true
+sudo sed -i 's/^disk_error_action.*/disk_error_action = halt/'            /etc/audit/auditd.conf || true
+
+# Explicit low-watermark thresholds (MB free before warning/halt)
+grep -q '^space_left\b' /etc/audit/auditd.conf \
+  && sudo sed -i 's/^space_left\b.*/space_left = 500/'       /etc/audit/auditd.conf \
+  || echo 'space_left = 500'     | sudo tee -a /etc/audit/auditd.conf >/dev/null
+grep -q '^admin_space_left\b' /etc/audit/auditd.conf \
+  && sudo sed -i 's/^admin_space_left\b.*/admin_space_left = 100/' /etc/audit/auditd.conf \
+  || echo 'admin_space_left = 100' | sudo tee -a /etc/audit/auditd.conf >/dev/null
 sudo augenrules --load >/dev/null 2>&1 || sudo service auditd restart || true
 
 # Enable audit at boot (GRUB)
@@ -500,6 +569,9 @@ if [ -f /etc/logrotate.conf ]; then
   grep -q '^delaycompress' /etc/logrotate.conf || echo 'delaycompress' | sudo tee -a /etc/logrotate.conf >/dev/null
   grep -q '^dateext' /etc/logrotate.conf || echo 'dateext' | sudo tee -a /etc/logrotate.conf >/dev/null
   grep -q '^su ' /etc/logrotate.conf || echo 'su root syslog' | sudo tee -a /etc/logrotate.conf >/dev/null
+  # maxsize: rotate immediately if a log exceeds this size even mid-week.
+  # Prevents a runaway process from filling disk between weekly rotation cycles.
+  grep -q '^maxsize' /etc/logrotate.conf || echo 'maxsize 100M' | sudo tee -a /etc/logrotate.conf >/dev/null
 fi
 
 # Logrotate rules for UFW (if not present)
@@ -517,16 +589,23 @@ if [ ! -f /etc/logrotate.d/ufw ]; then
 EOF
 fi
 
-# Journald: persistent storage with compression and size caps
+# Journald: persistent storage with compression, size caps, and disk headroom
 sudo install -d -m 0755 /etc/systemd/journald.conf.d
 sudo tee /etc/systemd/journald.conf.d/99-compression.conf >/dev/null <<'EOF'
 [Journal]
 Storage=persistent
 Compress=yes
 Seal=yes
+# Hard cap on total journal size
 SystemMaxUse=500M
 RuntimeMaxUse=200M
-MaxFileSec=1month
+# Limit individual journal file size before archiving (default 128M is too large)
+SystemMaxFileSize=64M
+# Always keep at least 1 GB free for other writers (EBS root vol is 24 GB)
+SystemKeepFree=1G
+# Age out entries older than 2 weeks regardless of size cap
+MaxRetentionSec=2weeks
+MaxFileSec=1week
 EOF
 sudo systemctl restart systemd-journald || true
 
@@ -538,6 +617,19 @@ sudo systemctl enable rsyslog || true
 sudo systemctl start rsyslog || true
 # CIS 4.2.1.3: restrict default log file permissions
 grep -q '^\$FileCreateMode' /etc/rsyslog.conf || echo '$FileCreateMode 0640' | sudo tee -a /etc/rsyslog.conf >/dev/null
+
+# Prevent auditd events from being double-logged via rsyslog.
+# audisp forwards audit records to syslog; without this rule rsyslog writes them
+# to /var/log/syslog AND /var/log/auth.log while auditd already writes to
+# /var/log/audit/audit.log — doubling audit log disk usage.
+if ! grep -q 'audispd' /etc/rsyslog.conf 2>/dev/null; then
+  sudo tee -a /etc/rsyslog.conf >/dev/null <<'EOF'
+# Drop auditd/audisp messages — already captured in /var/log/audit/
+if $programname == 'audispd' then stop
+if $programname == 'audit' then stop
+EOF
+fi
+sudo systemctl restart rsyslog || true
 
 # ==============================
 # Account and Environment Security (CIS 5.4)
@@ -585,3 +677,83 @@ sudo tee /etc/cron.d/aide-check >/dev/null <<'EOF'
 EOF
 sudo chown root:root /etc/cron.d/aide-check
 sudo chmod 600 /etc/cron.d/aide-check
+
+# ==============================
+# Service Audit — Boot Footprint Reduction
+# ==============================
+# Two categories:
+#   A. Disable entirely — services with zero utility on EC2 Nitro instances.
+#      Saves boot time, eliminates outbound network noise, shrinks attack surface.
+#   B. Boot-optional — useful on demand but not needed at startup.
+#      Re-enable with: sudo systemctl enable --now <service>
+
+# ── A. Disable entirely ──────────────────────────────────────────────────────
+
+# fwupd: Linux Vendor Firmware Service — updates device firmware from lvfs.fwupd.org.
+# EC2 manages firmware through the Nitro hypervisor; fwupd finds nothing to update
+# and makes outbound HTTPS calls on every boot (fwupd-refresh.timer).
+for svc in fwupd.service fwupd-refresh.timer fwupd-refresh.service; do
+  sudo systemctl disable "$svc" 2>/dev/null || true
+  sudo systemctl mask "$svc" 2>/dev/null || true
+done
+
+# apport / whoopsie: Ubuntu crash reporter and error telemetry to Canonical.
+# No value on production servers; privacy concern and adds outbound network dependency.
+for svc in apport.service whoopsie.service; do
+  sudo systemctl disable "$svc" 2>/dev/null || true
+  sudo systemctl mask "$svc" 2>/dev/null || true
+done
+# Disable apport kernel hook as well
+sudo sed -i 's/^enabled=.*/enabled=0/' /etc/default/apport 2>/dev/null || true
+
+# multipathd: device-mapper multipath for SAN storage (FC/iSCSI HBAs).
+# EC2 Nitro NVMe presents single-path block devices; multipathd spends 2-3s at boot
+# scanning for multipath devices that don't exist, then runs idle forever.
+for svc in multipathd.service multipathd.socket; do
+  sudo systemctl disable "$svc" 2>/dev/null || true
+  sudo systemctl mask "$svc" 2>/dev/null || true
+done
+
+# iscsid: iSCSI initiator daemon — connects to iSCSI SANs over TCP.
+# EC2 uses NVMe-over-PCIe (Nitro), not iSCSI. Dead weight at boot.
+sudo systemctl disable iscsid.service 2>/dev/null || true
+sudo systemctl mask iscsid.service 2>/dev/null || true
+
+# motd-news: fetches Ubuntu "news" from motd.ubuntu.com on every boot (timer-driven).
+# Adds an outbound DNS + HTTPS call to the critical boot path with no operational value.
+for svc in motd-news.service motd-news.timer; do
+  sudo systemctl disable "$svc" 2>/dev/null || true
+  sudo systemctl mask "$svc" 2>/dev/null || true
+done
+
+# systemd-timesyncd: built-in NTP client — conflicts with chrony (both registered as NTP).
+# chrony is already enabled (better accuracy, RFC 5905 NTPv4, handles leap seconds).
+# Having two NTP clients causes subtle clock-skew fights; mask timesyncd to prevent
+# re-enablement on package updates.
+sudo systemctl disable systemd-timesyncd.service 2>/dev/null || true
+sudo systemctl mask systemd-timesyncd.service 2>/dev/null || true
+
+# ── B. Boot-optional (installed, autostart disabled) ─────────────────────────
+# These services are useful on demand. To re-enable:
+#   sudo systemctl enable --now <service>
+
+# atd: the `at` one-shot job scheduler.
+# Cron handles all scheduled work in this AMI; `at` is rarely needed.
+# Re-enable if you need: echo "my-script.sh" | at now + 5 minutes
+sudo systemctl disable atd.service 2>/dev/null || true
+
+# snapd: Canonical's snap package manager.
+# All packages in this AMI are managed by Nix. Snapd adds a slow mount namespace
+# setup on every boot (~1-2s) and runs background refresh daemons for zero benefit.
+# Re-enable if a specific snap package is needed: sudo systemctl enable --now snapd
+for svc in snapd.service snapd.socket snapd.seeded.service snapd.apparmor.service; do
+  sudo systemctl disable "$svc" 2>/dev/null || true
+done
+
+# pollinate: seeds /dev/urandom from entropy.ubuntu.com on first boot.
+# EC2 Nitro has hardware RNG (virtio-rng) providing kernel entropy from boot.
+# After the first instance launch the seed file exists and pollinate is a no-op anyway.
+# Re-enable if deploying to an environment without hardware RNG.
+sudo systemctl disable pollinate.service 2>/dev/null || true
+
+echo "Service audit complete."

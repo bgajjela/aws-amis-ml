@@ -1,25 +1,49 @@
-Quick Start (CPU DS/ML AMI)
+Quick Start — CPU DS/ML AMI
 
 Launch
-- Instance type: m6i.large recommended for build/runtime balance
-- AMI includes hardened Ubuntu 22.04, Nix-managed runtimes, and audited defaults (see SECURITY_REPORT.md)
-- Security Group: allow only SSH (22) from your IP; open additional ports only as required
+- Recommended instance: c6i.xlarge (4 vCPU / 8 GB) for dev; c6i.4xlarge+ for training/Spark
+- Security Group: allow SSH (22) from your IP only; open additional ports only as required
+- EBS: root volume encrypted by default; minimum 24 GB (gp3)
 
 First login checks
-- py311/py313: `py311 -V && py313 -V`
-- Lang toolchains: `julia -e 'println(VERSION)' && R --version && go version`
-- Java/Spark: `java -version && spark-submit --version`
-- Nix: `nix --version && nix flake show /opt/nix/flake`
+  py311 -V && py312 -V && py313 -V
+  julia -e 'println(VERSION)' && R --version && go version && rustc --version
+  java -version && spark-submit --version
+  nix --version && nix flake show /opt/nix/flake
+
+Base env — quick test
+  py311 -c 'import numpy, pandas, pyspark, sklearn; print("base ok")'
+  py312 -c 'import numpy, pandas, pyspark, sklearn; print("base ok")'
+
+Pro env — quick test (pro AMI only)
+  py311 -c 'import torch, tensorflow, transformers; print(torch.__version__, tensorflow.__version__)'
+  py312 -c 'import torch, tensorflow, transformers; print(torch.__version__, tensorflow.__version__)'
 
 PySpark
-- Python 3.11: `PYSPARK_PYTHON=/opt/nix/envs/base/bin/python pyspark`
-- Python 3.13: `PYSPARK_PYTHON=/opt/nix/envs/base-py313/bin/python pyspark`
+  # Default (Python 3.11):
+  pyspark
 
-Rebuild envs (optional)
-- Lock flake: `sudo -E bash -lc 'source /etc/profile.d/nix.sh && nix flake lock /opt/nix/flake'`
-- Rebuild base: `sudo -E bash -lc 'source /etc/profile.d/nix.sh && nix build -o /opt/nix/envs/base /opt/nix/flake#py-base'`
+  # Specific version:
+  PYSPARK_PYTHON=/opt/nix/envs/base-py312/bin/python pyspark
+  PYSPARK_PYTHON=/opt/nix/envs/base-py313/bin/python pyspark
+
+  # Aliases (base AMI):
+  pyspark311   pyspark312   pyspark313
+
+On-demand security scan
+  sudo ami-scan            # CVE (Trivy) + CIS (OpenSCAP), ~5-8 min
+  sudo ami-scan --cve      # CVE only, ~2-3 min
+  sudo ami-scan --cis      # CIS only, ~3-5 min
+
+Build info
+  cat /usr/share/BUILD_INFO         # version
+  cat /usr/share/BUILD_INFO/packages.txt        # all packages
+  cat /usr/share/BUILD_INFO/sbom.cyclonedx.json # CycloneDX SBOM
+  cat /usr/share/BUILD_INFO/EULA.txt            # license terms
 
 Security posture
-- SSH hardened (no passwords/root), UFW default deny inbound with rate-limited SSH
-- CIS-aligned sysctl, AIDE, AppArmor, audit rules, log compression/rotation, tmpfs mounts (/tmp, /var/tmp)
-
+  SSH hardened: no passwords, no root, chacha20/aes-gcm only
+  UFW: default deny inbound, SSH rate-limited (fail2ban)
+  CIS L1+L2: 114 controls passing
+  IMDSv2 required — prevents SSRF metadata theft
+  EBS encrypted at rest (KMS)

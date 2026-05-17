@@ -32,8 +32,9 @@ fmt:
 
 test:
 	@echo "── shellcheck ─────────────────────────────────────────────────────────"
-	shellcheck -S warning harden.sh scripts/ami-finalize.sh scripts/build-base-envs.sh \
-	           scripts/build-pro-envs.sh scripts/spark-java.sh docker-sim/run-provision.sh
+	shellcheck -S warning harden.sh scripts/ami-finalize.sh scripts/ami-scan.sh \
+	           scripts/build-base-envs.sh scripts/build-pro-envs.sh scripts/tune-pro.sh \
+	           scripts/smoke-pro.sh scripts/spark-java.sh docker-sim/run-provision.sh
 	@echo "── CIS compliance ─────────────────────────────────────────────────────"
 	bash tests/cis-check.sh
 	@echo "── trivy (HIGH/CRITICAL) ──────────────────────────────────────────────"

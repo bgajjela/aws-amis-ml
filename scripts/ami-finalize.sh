@@ -79,40 +79,88 @@ sudo chmod 644 /usr/share/BUILD_INFO/sbom.cyclonedx.json
 # EULA / Subscriber License
 # ==============================
 sudo tee /usr/share/BUILD_INFO/EULA.txt >/dev/null <<'EOF'
-CPU DS/ML AMI — Subscriber License Agreement
-=============================================
+CPU DS/ML AMI — License Notice
+===============================
 Copyright (c) 2025. All rights reserved.
 
-AUTHORIZED USE ONLY
-This Amazon Machine Image (AMI) is licensed, not sold, to authorized
-subscribers through AWS Marketplace. Your subscription grants a
-non-exclusive, non-transferable right to launch instances of this AMI
-within your own AWS account solely for your internal business purposes.
+GOVERNING AGREEMENT
+This AMI is licensed under the AWS Standard Contract for AWS Marketplace
+(Standard Contract). By subscribing and launching instances of this AMI
+you agree to the Standard Contract terms.
 
-PROHIBITED ACTIONS
-The following are strictly prohibited without prior written consent:
-  - Copying, modifying, or redistributing this AMI or derived images
-  - Reverse engineering, decompiling, or disassembling AMI contents
-  - Reselling, sublicensing, or making this AMI available to third parties
-  - Removing or altering copyright notices, license terms, or attributions
-  - Launching instances of this AMI outside of an active Marketplace
-    subscription
+Full terms:
+  https://aws.amazon.com/marketplace/pp/prodview-standard-contract
+
+QUICK REFERENCE — KEY RESTRICTIONS
+  - Authorized use only: launch within your own AWS account under an
+    active Marketplace subscription
+  - No copying, redistribution, or resale of this AMI or derived images
+  - No reverse engineering or removal of copyright notices
+  - No sublicensing or making this AMI available to third parties outside
+    your AWS account
 
 OPEN-SOURCE COMPONENTS
-This AMI bundles open-source software under their respective upstream
-licenses (Apache 2.0, MIT, BSD, PSF, etc.). Those licenses are not
-affected by this agreement. See:
-  /usr/share/BUILD_INFO/packages.txt  — full package list
-  /usr/share/OSS_NOTICES.md          — open-source attributions
+This AMI bundles open-source software (PyTorch, TensorFlow, Spark,
+Ubuntu packages, Nix derivations, etc.) under their respective upstream
+licenses (Apache 2.0, MIT, BSD, PSF, GPL, etc.). Those licenses are not
+affected by the Standard Contract. See:
+  /usr/share/BUILD_INFO/packages.txt       — full package list
+  /usr/share/BUILD_INFO/sbom.cyclonedx.json — CycloneDX SBOM
+  /usr/share/OSS_NOTICES.md               — open-source attributions
 
-DISCLAIMER
-THIS AMI IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES,
-OR OTHER LIABILITY ARISING FROM USE OF THIS AMI.
-
-By launching instances of this AMI you agree to these terms.
+EXPORT CONTROL
+This software contains encryption components classified under ECCN
+5D002.c.1 and is distributed under License Exception ENC (mass-market
+encryption). See /usr/share/BUILD_INFO/EAR-classification.txt for
+details.
 EOF
 sudo chmod 644 /usr/share/BUILD_INFO/EULA.txt
+
+# ==============================
+# EAR Export Classification Notice (baked in for compliance records)
+# ==============================
+sudo tee /usr/share/BUILD_INFO/EAR-classification.txt >/dev/null <<'EOF'
+CPU DS/ML AMI — U.S. Export Administration Regulations (EAR) Classification
+=============================================================================
+
+ECCN:             5D002.c.1
+                  (Software for encryption / cryptanalysis)
+
+License Exception: ENC — Mass-market encryption
+                  (15 CFR Part 740, Supplement 1 to Part 742)
+
+Basis: This AMI bundles publicly available, mass-market cryptographic
+software (OpenSSL, OpenSSH, Python cryptography, AWS CLI TLS). These
+components:
+  - Are widely available from public sources (Ubuntu, PyPI, GitHub)
+  - Do not provide custom cryptographic implementations
+  - Are not designed for military or intelligence use
+  - Meet the ENC exception criteria at 15 CFR 740.17(b)(1)
+
+Encrypted components included:
+  - OpenSSL (Ubuntu libssl3, libssl-dev)     — TLS/SSL
+  - OpenSSH (Ubuntu openssh-server/client)   — SSH transport
+  - Python cryptography package (PyPI)       — TLS, x509, symmetric
+  - AWS CLI v2                               — HTTPS/TLS to AWS APIs
+  - Nix daemon                               — TLS to cache.nixos.org
+  - curl / wget / ca-certificates           — HTTPS transport
+
+Annual self-classification report: U.S. exporters distributing ENC
+mass-market items must submit an annual report to BIS via SNAP-R
+(https://snapr.bis.doc.gov) by February 1 each year for items sold
+in the prior calendar year. Report type: ANNUAL SELF-CLASSIFICATION
+REPORT FOR ENCRYPTION ITEMS.
+
+Restricted destinations: This software may not be exported to countries
+subject to U.S. embargo or comprehensive sanctions (Cuba, Iran, North
+Korea, Russia, Syria, Crimea). See current OFAC list:
+  https://www.treasury.gov/ofac/downloads/sdnlist.txt
+
+AWS Marketplace automatically blocks purchases from restricted regions.
+
+Last reviewed: 2026-05-17
+EOF
+sudo chmod 644 /usr/share/BUILD_INFO/EAR-classification.txt
 
 # ==============================
 # MOTD — displayed at every SSH login
@@ -123,7 +171,7 @@ cat <<'NOTICE'
 
  +------------------------------------------------------------+
  |          CPU DS/ML AMI  --  Authorized Use Only           |
- |   Copyright (c) 2025. Licensed via AWS Marketplace.       |
+ |   Copyright (c) 2025. Licensed via AWS Standard Contract. |
  |   Reverse engineering or redistribution is prohibited.    |
  |   Full terms: /usr/share/BUILD_INFO/EULA.txt              |
  +------------------------------------------------------------+
@@ -135,6 +183,33 @@ sudo chmod 755 /etc/update-motd.d/99-ami-notice
 # Disable the default Ubuntu "welcome" noise to keep MOTD clean
 sudo chmod -x /etc/update-motd.d/10-help-text 2>/dev/null || true
 sudo chmod -x /etc/update-motd.d/50-motd-news 2>/dev/null || true
+
+# ==============================
+# Disk Space Cleanup
+# ==============================
+
+# Nix garbage collection: removes build-time-only derivations that are no longer
+# reachable from any GC root. Frees 1-3 GB of store paths from intermediate
+# build steps that have no value in the final AMI.
+echo "Running nix garbage collection..."
+sudo bash -lc 'source /etc/profile.d/nix.sh && nix-collect-garbage -d' 2>/dev/null || true
+# nix store optimise intentionally omitted: hard-linking identical store paths
+# saves ~10-15% space but takes 5-15 min on a full ML store. The GC above
+# already removes 1-3 GB of build-time-only derivations — that is the
+# higher-value operation. Running optimise would noticeably extend build time.
+
+# Pip wheel cache: pip caches downloaded wheels under /root/.cache/pip and
+# /home/ubuntu/.cache/pip. After build these serve no purpose — on the running
+# AMI pip will re-download when needed. Purging saves 500 MB - 4 GB (pro build).
+sudo rm -rf /root/.cache/pip 2>/dev/null || true
+sudo rm -rf /home/ubuntu/.cache/pip 2>/dev/null || true
+
+# APT cache: packages downloaded during apt-get install steps
+sudo apt-get clean 2>/dev/null || true
+sudo rm -rf /var/lib/apt/lists/* 2>/dev/null || true
+
+# Trivy vuln DB: downloaded on first ami-scan run, not needed at build time
+sudo rm -rf /root/.cache/trivy 2>/dev/null || true
 
 # ==============================
 # AMI Scrub  (MUST STAY LAST)

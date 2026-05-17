@@ -19,105 +19,139 @@ This repository builds a hardened Ubuntu 22.04 AMI for data science and ML workl
 ## Build Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  packer build -only=cpu-ds-ml-base                            ~35–50 min    │
-│                                                                             │
-│  Ubuntu 22.04 (Canonical AMI)                                               │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 1 · apt bootstrap                          ~5 min     │            │
-│  │  curl, jq, git-lfs, unzip, awscli v2 (PGP-verified),       │            │
-│  │  auditd, fail2ban, ufw, chrony, unattended-upgrades         │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 2 · CIS hardening (harden.sh)              ~2 min     │            │
-│  │  114 CIS Ubuntu 22.04 L1+L2 controls, SSH, kernel sysctl,  │            │
-│  │  AppArmor, auditd immutable rules, AIDE init, UFW           │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 3 · Nix daemon install                     ~2 min     │            │
-│  │  Pinned installer (nix-2.24.9), multi-user daemon,         │            │
-│  │  flake lock, pulls from cache.nixos.org                     │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 4 · Parallel Nix builds (build-base-envs.sh) ~8 min  │            │
-│  │                                                             │            │
-│  │   py-base ──┐                                              │            │
-│  │   py312   ──┤                                              │            │
-│  │   py313   ──┤                                              │            │
-│  │   julia   ──┼──► all 12 builds fire simultaneously        │            │
-│  │   R       ──┤    (download-bound, not CPU-bound)          │            │
-│  │   go      ──┤    wait + fail-fast if any build errors     │            │
-│  │   java    ──┤                                              │            │
-│  │   spark   ──┤                                              │            │
-│  │   rustc   ──┤                                              │            │
-│  │   cargo   ──┤                                              │            │
-│  │   nodejs  ──┘                                              │            │
-│  │                                                             │            │
-│  │  → /opt/nix/envs/{base,base-py312,base-py313}              │            │
-│  │  → /opt/nix/langs/{java,spark,julia,R,go,rustc,cargo,node} │            │
-│  │  → /usr/local/bin/{py311,py312,py313,java,spark-submit,...} │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 5 · ami-finalize.sh                        ~1 min     │            │
-│  │  Package manifest, CycloneDX SBOM, EULA, MOTD,             │            │
-│  │  scrub: SSH host keys, cloud-init, bash history, logs,     │            │
-│  │  machine-id reset                                           │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  BASE AMI  (cpu-ds-ml-ubuntu-2204-base-<ts>)   tagged Role=dsml             │
-└─────────────────────────────────────────────────────────────────────────────┘
+                   C P U  ·  D S / M L  ·  A M I   B u i l d   P i p e l i n e
+  ═══════════════════════════════════════════════════════════════════════════════
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  packer build -only=cpu-ds-ml-pro              (run AFTER base) ~20–25 min  │
-│                                                                             │
-│  data "amazon-ami" "base"                                                   │
-│  → auto-discovers latest base AMI by name + tag                             │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 1 · Parallel pip installs (build-pro-envs.sh) ~18 min │            │
-│  │                                                             │            │
-│  │   py311: venv --system-site-packages ──┐                   │            │
-│  │   py312: venv --system-site-packages ──┼──► 3 pip jobs     │            │
-│  │   py313: venv --system-site-packages ──┘   in parallel     │            │
-│  │                                                             │            │
-│  │   Each installs:                                            │            │
-│  │     torch / torchvision / torchaudio  (CPU wheels ~200 MB) │            │
-│  │     tensorflow-cpu                    (pre-built ~600 MB)  │            │
-│  │     transformers / datasets / tokenizers / accelerate      │            │
-│  │     mlflow / xgboost / lightgbm                            │            │
-│  │                                                             │            │
-│  │  → /opt/nix/envs/{pro,pro-py312,pro-py313}                 │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐            │
-│  │  Step 2 · ami-finalize.sh                        ~1 min     │            │
-│  │  Package manifest (all 3 envs), SBOM, EULA, MOTD, scrub    │            │
-│  └─────────────────────────────────────────────────────────────┘            │
-│         │                                                                   │
-│         ▼                                                                   │
-│  PRO AMI  (cpu-ds-ml-ubuntu-2204-pro-<ts>)     tagged Role=dsml             │
-└─────────────────────────────────────────────────────────────────────────────┘
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  ▶  BASE AMI  ·  packer build -only=cpu-ds-ml-base  ·  ~35–50 min      ║
+  ╠══════════════════════════════════════════════════════════════════════════╣
+  ║                                                                          ║
+  ║   SOURCE  ──  Ubuntu 22.04 LTS  (Canonical  ·  ami-0*jammy-amd64)      ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~5 min   ║
+  ║   │  1  APT BOOTSTRAP                                       │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │  curl · jq · git-lfs · unzip · gnupg · build-essential │░          ║
+  ║   │  ufw · auditd · fail2ban · chrony · unattended-upgrades │░          ║
+  ║   │  openscap-scanner · trivy v0.70.0 (pinned)              │░          ║
+  ║   │  awscli v2  (PGP-verified  ·  no curl|sh)               │░          ║
+  ║   │  Nix 2.24.9 multi-user daemon  (pinned installer)       │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~4 min   ║
+  ║   │  2  CIS HARDENING  (harden.sh)                         │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │  ┌─────────────────────┐  ┌─────────────────────────┐  │░          ║
+  ║   │  │  §1-2  Filesystem   │  │  §3    Network          │  │░          ║
+  ║   │  │  tmpfs · modules    │  │  sysctl · UFW · sysctl  │  │░          ║
+  ║   │  │  AIDE  · AppArmor   │  │  martians · SYN cookies │  │░          ║
+  ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
+  ║   │  ┌─────────────────────┐  ┌─────────────────────────┐  │░          ║
+  ║   │  │  §4    Logging      │  │  §5    Access           │  │░          ║
+  ║   │  │  auditd  (bounded)  │  │  SSH · PAM · faillock   │  │░          ║
+  ║   │  │  logrotate+maxsize  │  │  sudo · password aging  │  │░          ║
+  ║   │  │  journald+keepfree  │  │  TMOUT · wheel group    │  │░          ║
+  ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
+  ║   │                  114 controls  ·  0 FAIL  ·  1 WARN     │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~8 min   ║
+  ║   │  3  PARALLEL NIX BUILDS  (build-base-envs.sh)          │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │                                                         │░          ║
+  ║   │   py-base (3.11) ──────────────────────────────┐       │░          ║
+  ║   │   py-base-py312  ──────────────────────────────┤       │░          ║
+  ║   │   py-base-py313  ──────────────────────────────┤       │░          ║
+  ║   │   julia          ──────────────────────────────┤ wait  │░          ║
+  ║   │   R              ──────────────────────────────┤  all  │░          ║
+  ║   │   go             ──────────────────────────────┤  12   │░          ║
+  ║   │   java (JDK 21)  ──────────────────────────────┤       │░          ║
+  ║   │   spark          ──────────────────────────────┤       │░          ║
+  ║   │   rustc · cargo  ──────────────────────────────┤       │░          ║
+  ║   │   nodejs 22 LTS  ──────────────────────────────┘       │░          ║
+  ║   │                                                         │░          ║
+  ║   │   all 12 fire simultaneously  ·  cache.nixos.org        │░          ║
+  ║   │   download-bound  ·  fail-fast on any error             │░          ║
+  ║   │                                                         │░          ║
+  ║   │   → /opt/nix/envs/{base,base-py312,base-py313}         │░          ║
+  ║   │   → /opt/nix/langs/{java,spark,julia,R,go,rustc,...}   │░          ║
+  ║   │   → /usr/local/bin/{py311,py312,py313,java,go,...}     │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~1 min   ║
+  ║   │  4  AMI FINALIZE  (ami-finalize.sh)                     │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │  packages.txt  ·  CycloneDX SBOM  ·  EULA  ·  MOTD    │░          ║
+  ║   │  nix GC + store optimise  ·  pip cache purge           │░          ║
+  ║   │  SSH host keys  ·  cloud-init clean  ·  machine-id     │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║               ╔═══════════▼══════════════════════╗                      ║
+  ║               ║  ◆  BASE AMI                     ║                      ║
+  ║               ║  cpu-ds-ml-ubuntu-2204-base-<ts> ║                      ║
+  ║               ║  tagged  Role=dsml               ║                      ║
+  ║               ╚══════════════════════════════════╝                      ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
 
-Build time summary (c6i.xlarge, Spot):
-  Base AMI:  ~35–50 min   (apt 5 + harden 2 + Nix daemon 2 + parallel Nix 8 + finalize 1)
-  Pro AMI:   ~20–25 min   (parallel pip 18 + finalize 1, skips all base work)
-  Total:     ~55–75 min   (sequential) or ~35–50 min (base + pro overlap if Spot available)
+                           │
+                           │  data "amazon-ami" "base"
+                           │  auto-discovers latest BASE AMI  ·  no duplication
+                           │  of apt / hardening / Nix work  (~1.5h saved)
+                           │
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  ▶  PRO AMI   ·  packer build -only=cpu-ds-ml-pro   ·  ~20–25 min      ║
+  ╠══════════════════════════════════════════════════════════════════════════╣
+  ║                                                                          ║
+  ║   SOURCE  ──  BASE AMI  (hardened  ·  Nix envs intact  ·  all tools)   ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~18 min  ║
+  ║   │  1  PARALLEL PIP INSTALLS  (build-pro-envs.sh)         │░          ║
+  ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
+  ║   │                                                         │░          ║
+  ║   │   py311 ─► venv (--system-site-packages) ──────────┐  │░          ║
+  ║   │   py312 ─► venv (--system-site-packages) ──────────┤  │░          ║
+  ║   │   py313 ─► venv (--system-site-packages) ──────────┘  │░          ║
+  ║   │              3 pip jobs fire simultaneously             │░          ║
+  ║   │                                                         │░          ║
+  ║   │   Each env installs:                                    │░          ║
+  ║   │   ├─ torch · torchvision · torchaudio  (CPU ~200 MB)   │░          ║
+  ║   │   ├─ tensorflow-cpu                    (CPU ~600 MB)   │░          ║
+  ║   │   ├─ transformers · datasets · tokenizers · accelerate │░          ║
+  ║   │   └─ mlflow · xgboost · lightgbm                       │░          ║
+  ║   │                                                         │░          ║
+  ║   │   inherits base: numpy · pandas · pyspark · sklearn    │░          ║
+  ║   │   → /opt/nix/envs/{pro,pro-py312,pro-py313}            │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║   ┌───────────────────────▼────────────────────────────────┐  ~1 min   ║
+  ║   │  2  AMI FINALIZE  (ami-finalize.sh)                     │░          ║
+  ║   │  packages.txt (all 3 envs)  ·  SBOM  ·  EULA  ·  scrub │░          ║
+  ║   └────────────────────────────────────────────────────────┘░          ║
+  ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
+  ║                           │                                              ║
+  ║               ╔═══════════▼══════════════════════╗                      ║
+  ║               ║  ◆  PRO AMI                      ║                      ║
+  ║               ║  cpu-ds-ml-ubuntu-2204-pro-<ts>  ║                      ║
+  ║               ║  tagged  Role=dsml               ║                      ║
+  ║               ╚══════════════════════════════════╝                      ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
 
-Cost estimate at Spot (~$0.05/hr for c6i.xlarge):
-  Base:  ~$0.04    Pro:  ~$0.02    Total: ~$0.06 per full build cycle
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  Build Summary  ·  c6i.xlarge (4 vCPU / 8 GB)  ·  Spot (~70% savings)  │
+  ├─────────────────────┬──────────────────────────────┬────────────────────┤
+  │  AMI                │  Wall-clock time             │  Cost at Spot      │
+  ├─────────────────────┼──────────────────────────────┼────────────────────┤
+  │  Base               │  ~35–50 min                  │  ~$0.04            │
+  │  Pro (after base)   │  ~20–25 min                  │  ~$0.02            │
+  │  Both (sequential)  │  ~55–75 min                  │  ~$0.06            │
+  ├─────────────────────┴──────────────────────────────┴────────────────────┤
+  │  On-demand scan: sudo ami-scan  ·  results → /var/log/ami-scan/         │
+  └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Structure

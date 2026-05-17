@@ -123,6 +123,9 @@ build {
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
+      "sudo apt-get -y install openscap-scanner libopenscap8 ssg-debderived",
+      # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
+      "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       "sudo systemctl enable auditd chrony unattended-upgrades",
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
@@ -165,6 +168,10 @@ build {
     destination = "/tmp/build-base-envs.sh"
   }
   provisioner "file" {
+    source      = "scripts/ami-scan.sh"
+    destination = "/tmp/ami-scan.sh"
+  }
+  provisioner "file" {
     source      = "examples/pyspark_basic.py"
     destination = "/tmp/pyspark_basic.py"
   }
@@ -184,6 +191,9 @@ build {
       "sudo systemctl daemon-reload",
       "sudo /tmp/harden.sh",
       "sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh",
+      "sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan",
+      # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
+      "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
     ]
   }
 
@@ -240,25 +250,36 @@ build {
   name    = "cpu-ds-ml-pro"
   sources = ["source.amazon-ebs.ubuntu_pro"]
 
-  # Upload build-pro-envs.sh which creates venvs + pip installs DL packages
+  # Upload pro build scripts
   provisioner "file" {
     source      = "scripts/build-pro-envs.sh"
     destination = "/tmp/build-pro-envs.sh"
   }
+  provisioner "file" {
+    source      = "scripts/tune-pro.sh"
+    destination = "/tmp/tune-pro.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/smoke-pro.sh"
+    destination = "/tmp/smoke-pro.sh"
+  }
 
   provisioner "shell" {
     inline = [
-      "sudo chmod +x /tmp/build-pro-envs.sh",
+      "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
       # build-pro-envs.sh: venv --system-site-packages on base Nix envs,
       # then pip install torch/tf/transformers CPU wheels (~15-20 min total)
       "sudo /tmp/build-pro-envs.sh",
-      # Smoke tests
+      # tune-pro.sh: ML-specific kernel + THP + limits tuning (run after envs are built)
+      "sudo /tmp/tune-pro.sh",
+      # Compute smoke tests: torch matmul+autograd, TF matmul, XGBoost/LightGBM fit,
+      # PySpark session — verifies BLAS linkage and framework compute, not just imports.
+      # Runs all three Python versions. Aborts the build if any check fails.
+      "/tmp/smoke-pro.sh",
+      # Sanity: symlinks, JVM, Spark still intact after pro layer
       "/usr/local/bin/py311 -V",
       "/usr/local/bin/py312 -V",
       "/usr/local/bin/py313 -V",
-      "/usr/local/bin/py311 -c 'import torch, tensorflow, transformers; print(torch.__version__, tensorflow.__version__)'",
-      "/usr/local/bin/py312 -c 'import torch, tensorflow, transformers; print(torch.__version__, tensorflow.__version__)'",
-      "/usr/local/bin/py313 -c 'import torch, tensorflow, transformers; print(torch.__version__, tensorflow.__version__)'",
       "java -version",
       "spark-submit --version",
       "echo VERSION=1.0.0-PRO | sudo tee /usr/share/BUILD_INFO",
