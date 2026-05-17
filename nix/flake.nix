@@ -39,21 +39,16 @@
             pyspark
           ];
 
-          # catboost omitted: not packaged in nixpkgs due to complex Rust build deps.
-          # Install separately with: pip install catboost
+          # catboost: not in nixpkgs (complex Rust build). pip install catboost
+          # torch/torchvision/torchaudio/tensorflow/transformers/datasets/tokenizers/
+          # sentencepiece/accelerate: installed via pre-built CPU pip wheels in the
+          # Packer pro build (scripts/build-pro-envs.sh). Nix compilation of these
+          # packages takes hours; pip CPU wheels install in minutes.
+          # mlflow/xgboost/lightgbm compile quickly and stay Nix-managed.
           proPackagesFn = ps: basePackagesFn ps ++ (with ps; [
-            torch
-            torchvision
-            torchaudio
-            tensorflow
             mlflow
             xgboost
             lightgbm
-            transformers
-            datasets
-            tokenizers
-            sentencepiece
-            accelerate
           ]);
         in {
           py-base       = mkPyEnv pkgs.python311 basePackagesFn;
