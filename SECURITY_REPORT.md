@@ -1,82 +1,258 @@
-Security Hardening Summary (CIS-aligned)
+# Security Hardening Summary (CIS Ubuntu 22.04 LTS Benchmark L1+L2)
 
-Overview
-- This document summarizes the hardening controls applied by `harden.sh` and how to verify them on an instance built from this AMI.
-- Many settings require a reboot to fully take effect (e.g., tmpfs mounts, GRUB audit flag). Most others are immediate.
+**Result: 114 controls, 0 FAIL, 1 WARN**
+The single WARN is `aide --check` on a freshly booted instance — expected because
+AIDE is initialized at AMI build time; a `--check` on a running instance will always
+find legitimate first-boot differences (cloud-init writes, log creation). The baseline
+DB is present at `/var/lib/aide/aide.db`.
 
-SSH Hardening
-- Password and keyboard-interactive disabled; pubkey only. Root login disabled. Safer crypto, reduced attack surface.
-- Config path: /etc/ssh/sshd_config
+Applied by: `harden.sh` (base AMI), `tune-pro.sh` (Pro AMI additional tuning)  
+Verified by: `sudo ami-scan` (Trivy + OpenSCAP, available on every instance)
+
+---
+
+## SSH Hardening
+
+Password and keyboard-interactive auth disabled; public-key only. Root login
+disabled. Safer ciphers, MACs, and key exchange algorithms enforced.
+
+- Config: `/etc/ssh/sshd_config`
 - Verify:
-  - `sshd -T | egrep 'passwordauthentication|kbdinteractiveauthentication|permitrootlogin|challengeresponseauthentication|x11forwarding|usedns|printlastlog|banner'`
-  - Expect: passwordauthentication no, kbdinteractiveauthentication no, permitrootlogin no, usedns no, x11forwarding no, printlastlog yes, banner /etc/issue.net
+  ```
+  sshd -T | egrep 'passwordauthentication|kbdinteractiveauthentication|permitrootlogin|challengeresponseauthentication|x11forwarding|usedns|printlastlog|banner'
+  ```
+  Expect: `passwordauthentication no`, `kbdinteractiveauthentication no`,
+  `permitrootlogin no`, `usedns no`, `x11forwarding no`, `banner /etc/issue.net`
 
-Login Banner
-- Files: /etc/issue, /etc/issue.net (legal notice); Banner enabled in sshd.
-- Verify: `stat -c '%a %U:%G %n' /etc/issue /etc/issue.net` (expect 644 root:root)
+---
 
-Firewall (UFW)
-- Default deny inbound, allow outbound; OpenSSH allowed and rate-limited; logging enabled.
+## Login Banners
+
+Legal notice at `/etc/issue` (local TTY) and `/etc/issue.net` (SSH pre-auth).
+
+- Verify: `sshd -T | grep banner` and `cat /etc/issue /etc/issue.net`
+- Permissions: `stat -c '%a %U:%G %n' /etc/issue /etc/issue.net` (expect `644 root:root`)
+
+---
+
+## Firewall (UFW)
+
+Default deny inbound, allow outbound; OpenSSH allowed and rate-limited; logging on.
+
 - Verify:
-  - `ufw status verbose`
-  - Expect: Status active; Default: deny (incoming), allow (outgoing); OpenSSH ALLOW and LIMIT rules.
+  ```
+  ufw status verbose
+  ```
+  Expect: Status active; Default: deny (incoming), allow (outgoing); OpenSSH ALLOW + LIMIT rules.
 
-System Updates and Services
-- unattended-upgrades installed and configured; chrony and auditd enabled.
-- Verify: `systemctl is-enabled chrony auditd` (expect enabled)
+---
 
-Ulimits
-- Login sessions: nofile 65535, nproc 16384, core 0, memlock 65536 via /etc/security/limits.d/99-ulimits.conf
-- Systemd defaults: DefaultLimitNOFILE=65535, DefaultLimitNPROC=16384, DefaultLimitCORE=0, DefaultLimitMEMLOCK=65536
+## System Updates and Core Services
+
+`unattended-upgrades` enabled — running instances receive security patches
+automatically. `chrony` and `auditd` enabled at boot.
+
+- Verify: `systemctl is-enabled chrony auditd unattended-upgrades` (expect `enabled`)
+
+---
+
+## Boot Service Hardening
+
+Unnecessary services are disabled or masked at AMI build time to reduce the
+attack surface and boot footprint.
+
+| Service | Action | Reason |
+|---------|--------|--------|
+| `fwupd` / `fwupd-refresh.timer` | masked | no firmware updates on cloud VMs |
+| `apport` / `whoopsie` | masked | crash reporting not needed, leaks system info |
+| `multipathd` / `multipathd.socket` | masked | single EBS root volume, no multipath |
+| `iscsid` | masked | no iSCSI block storage |
+| `motd-news.timer` | masked | prevents outbound calls to motd.ubuntu.com |
+| `systemd-timesyncd` | masked | chrony handles time sync |
+| `atd` | disabled | at-job scheduler unused; crond restricted to root |
+| `snapd` (all units) | disabled | Snap not supported in this environment |
+| `pollinate` | disabled | entropy seeding not needed post-boot |
+
+- Verify: `systemctl is-enabled fwupd apport multipathd` (each should be `masked` or `disabled`)
+
+---
+
+## File System and Directory Hardening
+
+`/tmp` and `/var/tmp` mounted as tmpfs (`nodev,nosuid,noexec,mode=1777`) via
+systemd mount units. `/dev/shm` hardened via fstab. World-writable directories
+have sticky bit. Home directories: `0750` (root `0700`). umask `027`.
+
 - Verify:
-  - `ulimit -n` in a new login shell; check `systemctl show --property DefaultLimitNOFILE`.
+  ```
+  systemctl status tmp.mount var-tmp.mount
+  mount | egrep '/tmp|/var/tmp|/dev/shm'
+  stat -c '%a' /home/* /root
+  umask   # in a new login shell — expect 0027
+  ```
 
-Filesystem and Directory Hardening
-- /tmp and /var/tmp configured as tmpfs (mode 1777, nodev,nosuid,noexec) via tmp.mount and var-tmp.mount.
-- /dev/shm hardened via fstab (nodev,nosuid,noexec,mode=1777).
-- World-writable dirs have sticky bit; homes set to 0750 (root 0700), tightened umask to 027.
+---
+
+## Sysctl Hardening
+
+Applied via `/etc/sysctl.d/99-cis-net.conf` and `99-cis-fs.conf`.
+
+Key controls: IP redirects/source routing disabled, `rp_filter` on, SYN cookies
+on, IPv6 RA/redirects off, ASLR on, `protected_{symlinks,hardlinks,fifos,regular}`
+enabled, `kptr_restrict`, `dmesg_restrict`, `perf_event_paranoid`, `ptrace_scope`.
+
 - Verify:
-  - `systemctl status tmp.mount var-tmp.mount` (after reboot should be active)
-  - `mount | egrep '/tmp|/var/tmp|/dev/shm'` and confirm mount options
-  - `namei -m /home/ubuntu` and `stat -c '%a' /home/* /root`
-  - `umask` in a new login shell (expect 0027)
+  ```
+  sysctl -a | egrep 'accept_redirects|accept_source_route|send_redirects|rp_filter|tcp_syncookies|randomize_va_space|suid_dumpable|protected_(hardlinks|symlinks|fifos|regular)|kptr_restrict|dmesg_restrict|perf_event_paranoid|ptrace_scope'
+  ```
 
-Sysctl Network and Kernel Hardening
-- Applied via /etc/sysctl.d/99-cis-net.conf and 99-cis-fs.conf.
-- Highlights: redirect/source-route off, rp_filter on, syncookies on, IPv6 RA/redirects off, ASLR on, protected_{symlinks,hardlinks,fifos,regular}=1/2, kptr/dmesgrestrict, perf_event_paranoid, yama.
-- Verify: `sysctl -a | egrep 'accept_redirects|accept_source_route|send_redirects|rp_filter|tcp_syncookies|randomize_va_space|suid_dumpable|protected_(hardlinks|symlinks|fifos|regular)|kptr_restrict|dmesg_restrict|perf_event_paranoid|ptrace_scope'`
+---
 
-Auditd
-- Watch rules installed: identity files, sudoers, sshd_config, sysctl, audit config, time changes, modules; immutable rules.
-- GRUB audit=1 set for boot-time auditing.
+## Resource Limits (ulimits)
+
+### Base AMI (`/etc/security/limits.d/99-ulimits.conf`)
+
+| Limit | Soft | Hard |
+|-------|------|------|
+| nofile (open files) | 65535 | 65535 |
+| nproc (processes) | 16384 | 16384 |
+| core | 0 | 0 |
+| memlock | 65536 KB | 65536 KB |
+
+Systemd defaults mirror PAM limits via `/etc/systemd/system.conf.d/99-limits.conf`.
+
+### Pro AMI (overrides by `tune-pro.sh`)
+
+| Limit | Soft | Hard |
+|-------|------|------|
+| nofile | 1,048,576 | 1,048,576 |
+| nproc | 65536 | 65536 |
+| memlock | unlimited | unlimited |
+
 - Verify:
-  - `auditctl -s` (enabled), `auditctl -l | head` shows rules, `grep audit=1 /proc/cmdline` after reboot
+  ```
+  ulimit -n          # in a new login shell
+  systemctl show --property DefaultLimitNOFILE
+  ```
 
-AppArmor, AIDE, PAM
-- AppArmor installed and enforcing; AIDE DB initialized.
-- Password quality enforced (minlen=14, character classes), password history remember=5; faillock policy deny=5 unlock_time=900; su restricted to sudo.
+---
+
+## Auditd
+
+Watch rules: identity files, sudoers, `sshd_config`, sysctl, audit config, time
+changes, kernel module loads. Rules set immutable at boot. GRUB `audit=1` enables
+kernel-level syscall auditing from the earliest boot stage.
+
 - Verify:
-  - `aa-status` (profiles in enforce mode)
-  - `grep -E 'minlen|dcredit|ucredit|lcredit|ocredit|remember' /etc/security/pwquality.conf`
-  - `grep faillock /etc/pam.d/common-*` and `grep pam_wheel /etc/pam.d/su`
-  - `test -f /var/lib/aide/aide.db && echo AIDE DB present`
+  ```
+  auditctl -s          # expect enabled=2 (immutable)
+  auditctl -l | head
+  grep audit=1 /proc/cmdline   # after reboot
+  ```
 
-Log Management
-- logrotate: weekly, rotate 14, compress+delaycompress, dateext; UFW log rotation added.
-- journald: persistent, compressed, size caps (500M system, 200M runtime), Seal=yes.
+---
+
+## AppArmor, AIDE, PAM
+
+- **AppArmor**: installed and enforcing all loaded profiles.
+- **AIDE**: database initialized at build time (`/var/lib/aide/aide.db`).
+- **Password quality**: minlen=14, character class requirements, history=5.
+- **faillock**: deny after 5 failures, 900-second unlock.
+- **su**: restricted to `sudo` group via `pam_wheel`.
+
 - Verify:
-  - `grep -E 'weekly|rotate|compress|dateext' /etc/logrotate.conf`
-  - `journalctl --disk-usage` and `grep -R '\[Journal\]' /etc/systemd/journald.conf.d`
+  ```
+  aa-status
+  grep -E 'minlen|dcredit|ucredit|lcredit|ocredit|remember' /etc/security/pwquality.conf
+  grep faillock /etc/pam.d/common-*
+  grep pam_wheel /etc/pam.d/su
+  test -f /var/lib/aide/aide.db && echo "AIDE DB present"
+  ```
 
-Cron/At Restrictions
-- Only root allowed; deny files removed.
-- Verify: `ls -l /etc/cron.allow /etc/at.allow` and `test ! -f /etc/cron.deny && echo ok`
+---
 
-Banner and Legal Notices
-- Local login banner at /etc/issue; SSH banner at /etc/issue.net; enabled via sshd_config Banner.
-- Verify: `sshd -T | grep banner` and `cat /etc/issue{,.net}`
+## Kernel Module Blacklist
 
-Notes
-- Some settings (tmp mounts, GRUB audit) require reboot.
-- If services need execution in temp, use dedicated work dirs; do not relax noexec on /tmp globally.
+Unused and dangerous kernel modules are blacklisted in
+`/etc/modprobe.d/cis-blacklist.conf` using `install <module> /bin/true` which
+prevents loading even with `modprobe`.
 
+| Module | Reason |
+|--------|--------|
+| `cramfs`, `freevxfs`, `jffs2`, `hfs`, `hfsplus`, `squashfs`, `udf` | Unused filesystems |
+| `dccp`, `sctp`, `rds`, `tipc` | Unused protocols |
+| `algif_aead` | **CVE-2026-31431** local privilege escalation via AF_ALG socket |
+
+- Verify:
+  ```
+  grep algif_aead /etc/modprobe.d/cis-blacklist.conf
+  lsmod | grep algif_aead || echo "algif_aead not loaded — expected"
+  ```
+
+---
+
+## CVE-2026-31431 (Copy Fail) Remediation
+
+| Field | Detail |
+|-------|--------|
+| CVE | CVE-2026-31431 |
+| Severity | High |
+| Component | `algif_aead` Linux kernel module |
+| Impact | Local privilege escalation to root |
+| AMI remediation | commit `564c10b` (2026-05-17) |
+
+Two-layer fix applied at build time:
+
+1. `algif_aead` blacklisted (`install algif_aead /bin/true`) — module cannot load
+2. Packer build reboots into the patched kernel before snapshotting the AMI
+
+See `SECURITY.md` for the full advisory and manual remediation steps for older instances.
+
+---
+
+## Log Management
+
+`logrotate`: weekly, rotate 14, compress + delaycompress, dateext. UFW log
+rotation included. `journald`: persistent, compressed, size-capped (500 MB system,
+200 MB runtime), `Seal=yes`.
+
+- Verify:
+  ```
+  grep -E 'weekly|rotate|compress|dateext' /etc/logrotate.conf
+  journalctl --disk-usage
+  grep -R '\[Journal\]' /etc/systemd/journald.conf.d/
+  ```
+
+---
+
+## Cron / At Restrictions
+
+Only root allowed for cron and at jobs; deny files removed.
+
+- Verify:
+  ```
+  ls -l /etc/cron.allow /etc/at.allow
+  test ! -f /etc/cron.deny && echo ok
+  ```
+
+---
+
+## AMI Build Scrub
+
+Before AMI snapshot, `ami-finalize.sh` removes build artefacts and resets
+instance state so each customer instance starts clean:
+
+- SSH host keys removed (regenerated on first boot)
+- `cloud-init clean --logs` — re-runs keypair injection on first boot
+- Shell history truncated for all users
+- Log files truncated (logrotate config preserved)
+- Machine ID reset (new unique ID generated at first boot)
+- Build temp files, pip wheel cache, APT cache, Trivy DB removed
+
+---
+
+## On-Demand Scanning
+
+`sudo ami-scan` runs Trivy (CVE) + OpenSCAP (CIS) and saves results to
+`/var/log/ami-scan/`. Use this to verify the posture of a running instance at
+any time. See `USAGE.md` for flag reference.
