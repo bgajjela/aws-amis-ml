@@ -30,7 +30,8 @@ RUN apt-get update \
 
 RUN useradd -m -s /bin/bash ubuntu \
   && mkdir -p /opt/venvs /usr/share/examples/spark /opt/nix/flake /opt/nix/envs /opt/nix/langs \
-  && chown -R ubuntu:ubuntu /opt/venvs
+  && chown -R ubuntu:ubuntu /opt/venvs \
+  && echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 RUN printf '#!/bin/sh\necho "[systemctl stub] $@" >&2\nexit 0\n' > /usr/local/bin/systemctl \
   && chmod +x /usr/local/bin/systemctl
@@ -53,5 +54,9 @@ RUN chmod +x /usr/local/bin/run-provision.sh \
   && /usr/local/bin/run-provision.sh common
 
 RUN /usr/local/bin/run-provision.sh ${AMI_VARIANT}
+
+# Match EC2 runtime: ubuntu user with passwordless sudo (root used only for build steps above)
+USER ubuntu
+WORKDIR /home/ubuntu
 
 CMD ["/bin/bash"]

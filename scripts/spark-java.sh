@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Spark/Java environment for all shells (Java 21 LTS)
 export JAVA_HOME=/opt/nix/langs/java
 export SPARK_HOME=/opt/nix/langs/spark
