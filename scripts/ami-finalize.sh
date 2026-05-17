@@ -44,6 +44,38 @@ EOF
 sudo chmod 644 /usr/share/BUILD_INFO/packages.txt
 
 # ==============================
+# SBOM (CycloneDX JSON)
+# ==============================
+# Generates a minimal CycloneDX 1.4 SBOM listing all pip-installed packages.
+# Enterprise and government buyers increasingly require an SBOM for procurement.
+{
+  cat <<HEADER
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "version": 1,
+  "metadata": {
+    "timestamp": "${BUILT_AT}",
+    "component": { "type": "container", "name": "cpu-ds-ml-ami-${VARIANT}" }
+  },
+  "components": [
+HEADER
+  # Emit one JSON object per pip package (primary env)
+  /opt/nix/envs/${VARIANT}/bin/python -m pip list --format=json 2>/dev/null | \
+    python3 -c "
+import json, sys
+pkgs = json.load(sys.stdin)
+lines = []
+for p in pkgs:
+    lines.append('    {\"type\":\"library\",\"name\":\"' + p['name'] + '\",\"version\":\"' + p['version'] + '\"}')
+print(',\n'.join(lines))
+" || true
+  echo "  ]"
+  echo "}"
+} | sudo tee /usr/share/BUILD_INFO/sbom.cyclonedx.json >/dev/null
+sudo chmod 644 /usr/share/BUILD_INFO/sbom.cyclonedx.json
+
+# ==============================
 # EULA / Subscriber License
 # ==============================
 sudo tee /usr/share/BUILD_INFO/EULA.txt >/dev/null <<'EOF'

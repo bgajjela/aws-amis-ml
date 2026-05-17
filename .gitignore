@@ -1,3 +1,8 @@
 *.bak
 *.tmp.*
 .vscode/
+# Private var file (copy vars.example.pkrvars.hcl → build.pkrvars.hcl with real values)
+build.pkrvars.hcl
+# Packer and trivy caches
+packer_cache/
+.trivy/

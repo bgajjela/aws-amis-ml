@@ -28,9 +28,11 @@ source "amazon-ebs" "ubuntu_base" {
   ssh_username                = "ubuntu"
   ena_support                 = true
   instance_type               = var.instance_type
+  spot_price                  = var.spot_price
   subnet_id                   = var.subnet_id
   security_group_id           = var.security_group_id
   associate_public_ip_address = var.associate_public_ip
+  ami_regions                 = var.additional_regions
 
   # Enforce IMDSv2: prevents SSRF attacks from stealing EC2 role credentials via IMDSv1
   metadata_options {
@@ -72,9 +74,11 @@ source "amazon-ebs" "ubuntu_pro" {
   ssh_username                = "ubuntu"
   ena_support                 = true
   instance_type               = var.instance_type
+  spot_price                  = var.spot_price
   subnet_id                   = var.subnet_id
   security_group_id           = var.security_group_id
   associate_public_ip_address = var.associate_public_ip
+  ami_regions                 = var.additional_regions
 
   # Start from the already-hardened base AMI — avoids repeating ~1.5h of work
   # (apt upgrade, hardening, Nix setup, Julia/R/Go/Java/Spark, base Python envs).
@@ -196,6 +200,9 @@ build {
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/go /opt/nix/flake#go'",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/java /opt/nix/flake#java'",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/spark /opt/nix/flake#spark'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/rustc /opt/nix/flake#rustc'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/cargo /opt/nix/flake#cargo'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix build --max-jobs auto --cores 0 -o /opt/nix/langs/nodejs /opt/nix/flake#nodejs'",
       "if [ -x /opt/nix/envs/base/bin/python ]; then sudo ln -sf /opt/nix/envs/base/bin/python /usr/local/bin/py311; fi",
       "if [ -x /opt/nix/envs/base-py312/bin/python ]; then sudo ln -sf /opt/nix/envs/base-py312/bin/python /usr/local/bin/py312; elif ls /opt/nix/envs/base-py312/bin/python3.* >/dev/null 2>&1; then sudo ln -sf $(ls /opt/nix/envs/base-py312/bin/python3.* | head -n1) /usr/local/bin/py312; fi",
       "if [ -x /opt/nix/envs/base-py313/bin/python ]; then sudo ln -sf /opt/nix/envs/base-py313/bin/python /usr/local/bin/py313; elif ls /opt/nix/envs/base-py313/bin/python3.* >/dev/null 2>&1; then sudo ln -sf $(ls /opt/nix/envs/base-py313/bin/python3.* | head -n1) /usr/local/bin/py313; fi",
@@ -206,6 +213,9 @@ build {
       "if [ -x /opt/nix/langs/java/bin/java ]; then sudo ln -sf /opt/nix/langs/java/bin/java /usr/local/bin/java; fi",
       "if [ -x /opt/nix/langs/spark/bin/spark-submit ]; then sudo ln -sf /opt/nix/langs/spark/bin/spark-submit /usr/local/bin/spark-submit; fi",
       "if [ -x /opt/nix/langs/spark/bin/pyspark ]; then sudo ln -sf /opt/nix/langs/spark/bin/pyspark /usr/local/bin/pyspark; fi",
+      "if [ -x /opt/nix/langs/rustc/bin/rustc ]; then sudo ln -sf /opt/nix/langs/rustc/bin/rustc /usr/local/bin/rustc; fi",
+      "if [ -x /opt/nix/langs/cargo/bin/cargo ]; then sudo ln -sf /opt/nix/langs/cargo/bin/cargo /usr/local/bin/cargo; fi",
+      "if [ -x /opt/nix/langs/nodejs/bin/node ]; then sudo ln -sf /opt/nix/langs/nodejs/bin/node /usr/local/bin/node; sudo ln -sf /opt/nix/langs/nodejs/bin/npm /usr/local/bin/npm; fi",
       "sudo install -d -m 0755 /usr/share/examples/spark",
       "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
       "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
@@ -223,6 +233,9 @@ build {
       "julia -e 'println(VERSION)'",
       "R --version",
       "go version",
+      "rustc --version",
+      "cargo --version",
+      "node --version",
       "echo VERSION=1.0.0-BASE | sudo tee /usr/share/BUILD_INFO",
     ]
   }
@@ -282,16 +295,19 @@ build {
   }
 }
 
-variable "instance_type" { default = "m6i.large" }
-variable "root_volume_size" { default = 16 }
-variable "subnet_id" { default = "" }
-variable "security_group_id" { default = "" }
-variable "associate_public_ip" {
-  type = bool
-  default = true
+# c6i.xlarge: 4 vCPU / 8 GB — 2x faster Nix builds vs m6i.large at similar cost.
+# Use spot_price="auto" in vars to cut build cost by ~70% with Spot pricing.
+variable "instance_type"    { default = "c6i.xlarge" }
+variable "spot_price"       { default = "" }          # set "auto" to use Spot
+variable "root_volume_size" { default = 24 }          # extra headroom for Nix store + pip wheels
+variable "subnet_id"           { default = "" }
+variable "security_group_id"   { default = "" }
+variable "associate_public_ip" { type = bool; default = true }
+variable "encrypt_ebs"         { type = bool; default = true }
+variable "kms_key_id"          { default = "" }
+# Comma-separated list of additional regions to copy the AMI into after build.
+# Example: ["us-west-2","eu-west-1","ap-southeast-1"]
+variable "additional_regions" {
+  type    = list(string)
+  default = []
 }
-variable "encrypt_ebs" {
-  type = bool
-  default = true
-}
-variable "kms_key_id" { default = "" }

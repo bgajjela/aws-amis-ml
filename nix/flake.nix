@@ -65,6 +65,11 @@
           go        = pkgs.go;
           java      = pkgs.openjdk21;
           spark     = pkgs.apacheSpark;
+          # Rust: powers tokenizers, polars internals, and ML infra tooling
+          rustc     = pkgs.rustc;
+          cargo     = pkgs.cargo;
+          # Node.js 22 LTS: Jupyter lab extensions, JS-based ML tooling
+          nodejs    = pkgs.nodejs_22;
 
           env-report-base = pkgs.writeShellScriptBin "env-report-base" ''
             "${self.packages.${system}.py-base}/bin/python" -m pip list --format=columns
@@ -107,7 +112,10 @@
               pkgs.R
               (pkgs.julia-bin or pkgs.julia)
               pkgs.go
-              pkgs.openjdk17
+              pkgs.openjdk21
+              pkgs.rustc
+              pkgs.cargo
+              pkgs.nodejs_22
             ];
           };
         }
