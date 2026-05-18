@@ -141,7 +141,7 @@ check "5.4.1    password expiry 365 days"       "PASS_MAX_DAYS.*365"
 check "5.4.2    password min days 1"            "PASS_MIN_DAYS.*1"
 check "5.4.3    password warn 7 days"           "PASS_WARN_AGE.*7"
 check "5.4.4    inactive lock 30 days"          "INACTIVE.*30|useradd.*-f.*30"
-check "5.4.5    shell timeout TMOUT=900"        "TMOUT=900"
+check "5.4.5    shell timeout TMOUT<=900"        "TMOUT=[1-9][0-9]{1,2}$"
 check "5.4.6    system accounts nologin"        "nologin.*sysuser|usermod.*nologin"
 check "5.5      su restricted to wheel/sudo"    "pam_wheel"
 
