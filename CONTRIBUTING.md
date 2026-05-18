@@ -43,6 +43,21 @@ cp vars.example.pkrvars.hcl my.pkrvars.hcl   # fill in subnet_id, security_group
 
 Do not open a public issue. See [SECURITY.md](SECURITY.md) for the private disclosure process.
 
+## Developer Certificate of Origin (DCO)
+
+All contributions must be signed off to certify that you wrote the contribution or have the right to submit it under the project license. Add a `Signed-off-by` line to every commit:
+
+```bash
+git commit -s -m "your commit message"
+```
+
+This adds:
+```
+Signed-off-by: Your Name <your@email.com>
+```
+
+By signing off you agree to the [Developer Certificate of Origin v1.1](https://developercertificate.org/).
+
 ## License
 
 By contributing you agree your changes are licensed under [Apache 2.0](LICENSE).
