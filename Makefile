@@ -5,19 +5,23 @@ SHELL         := bash -euo pipefail
 PKVARS := $(wildcard *.pkrvars.hcl)
 PKFLAGS := $(if $(PKVARS),-var-file=$(PKVARS))
 
-.PHONY: help init validate fmt test build-base build-pro build-all clean
+.PHONY: help init validate fmt test build-base build-pro build-all \
+        build-arm-base build-arm-pro build-arm-all clean
 
 help:
 	@echo "CPU DS/ML AMI — available targets"
 	@echo ""
-	@echo "  init          packer init (download amazon plugin)"
-	@echo "  validate      packer validate"
-	@echo "  fmt           packer fmt (format HCL in-place)"
-	@echo "  test          shellcheck + CIS compliance + trivy CVE scan"
-	@echo "  build-base    build the hardened base AMI"
-	@echo "  build-pro     build the pro AMI (requires base AMI in same region)"
-	@echo "  build-all     build-base then build-pro"
-	@echo "  clean         remove local trivy cache and temp artefacts"
+	@echo "  init              packer init (download amazon plugin)"
+	@echo "  validate          packer validate"
+	@echo "  fmt               packer fmt (format HCL in-place)"
+	@echo "  test              shellcheck + CIS compliance + trivy CVE scan"
+	@echo "  build-base        build the hardened x86 base AMI"
+	@echo "  build-pro         build the x86 pro AMI (requires x86 base in same region)"
+	@echo "  build-all         build-base then build-pro (x86)"
+	@echo "  build-arm-base    build the hardened ARM64/Graviton base AMI"
+	@echo "  build-arm-pro     build the ARM64 pro AMI (requires arm64 base in same region)"
+	@echo "  build-arm-all     build-arm-base then build-arm-pro"
+	@echo "  clean             remove local trivy cache and temp artefacts"
 	@echo ""
 	@echo "Override vars:  make build-base PKFLAGS='-var spot_price=auto'"
 
@@ -48,6 +52,14 @@ build-pro:
 	packer build $(PKFLAGS) -only=cpu-ds-ml-pro .
 
 build-all: build-base build-pro
+
+build-arm-base: validate
+	packer build $(PKFLAGS) -only=cpu-ds-ml-arm64-base .
+
+build-arm-pro:
+	packer build $(PKFLAGS) -only=cpu-ds-ml-arm64-pro .
+
+build-arm-all: build-arm-base build-arm-pro
 
 clean:
 	rm -rf ~/.cache/trivy /tmp/packer-* /tmp/awscliv2*

@@ -5,7 +5,10 @@ packer {
 }
 
 variable "region" { default = "us-east-1" }
-locals { base_name = "cpu-ds-ml-ubuntu-2204" }
+locals {
+  base_name     = "cpu-ds-ml-ubuntu-2204"
+  arm_base_name = "cpu-ds-ml-ubuntu-2204-arm64"
+}
 
 # Discovers the most-recently-built base AMI so the pro build can layer on top
 # instead of repeating all hardening/toolchain work (~1.5h saved per build).
@@ -17,6 +20,20 @@ data "amazon-ami" "base" {
   owners      = ["self"]
   filters = {
     name                = "${local.base_name}-base-*"
+    "tag:Role"          = "dsml"
+    virtualization-type = "hvm"
+  }
+}
+
+# Discovers the most-recently-built ARM base AMI for the pro ARM build.
+# Run arm base first: packer build -only=cpu-ds-ml-arm64-base .
+# Then run arm pro:   packer build -only=cpu-ds-ml-arm64-pro .
+data "amazon-ami" "base_arm" {
+  region      = var.region
+  most_recent = true
+  owners      = ["self"]
+  filters = {
+    name                = "${local.arm_base_name}-base-*"
     "tag:Role"          = "dsml"
     virtualization-type = "hvm"
   }
@@ -106,6 +123,91 @@ source "amazon-ebs" "ubuntu_pro" {
   ami_name        = "${local.base_name}-pro-{{timestamp}}"
   ami_description = "CPU DS/ML AMI (Pro) - Ubuntu 22.04, full DL stack (torch/tf/transformers), CIS-hardened"
   tags = { Name = "${local.base_name}-pro", Role = "dsml" }
+}
+
+# -------- ARM64 / Graviton sources --------
+
+source "amazon-ebs" "ubuntu_arm_base" {
+  region                      = var.region
+  ssh_username                = "ubuntu"
+  ena_support                 = true
+  instance_type               = var.arm_instance_type
+  spot_price                  = var.spot_price
+  subnet_id                   = var.subnet_id
+  security_group_id           = var.security_group_id
+  associate_public_ip_address = var.associate_public_ip
+  ami_regions                 = var.additional_regions
+
+  # Enforce IMDSv2
+  metadata_options {
+    http_tokens                 = "required"
+    http_endpoint               = "enabled"
+    http_put_response_hop_limit = 1
+  }
+
+  encrypt_boot = var.encrypt_ebs
+  kms_key_id   = var.kms_key_id
+
+  source_ami_filter {
+    owners      = ["099720109477"] # Canonical
+    most_recent = true
+    filters = {
+      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"
+      virtualization-type = "hvm"
+      root-device-type    = "ebs"
+    }
+  }
+
+  launch_block_device_mappings {
+    device_name           = "/dev/sda1"
+    volume_size           = var.root_volume_size
+    volume_type           = "gp3"
+    encrypted             = var.encrypt_ebs
+    kms_key_id            = var.kms_key_id
+    delete_on_termination = true
+  }
+
+  ami_name        = "${local.arm_base_name}-base-{{timestamp}}"
+  ami_description = "CPU DS/ML AMI (Base, ARM64/Graviton) - Ubuntu 22.04, pinned minimal stack, CIS-style hardened"
+  tags = { Name = "${local.arm_base_name}-base", Role = "dsml" }
+}
+
+source "amazon-ebs" "ubuntu_arm_pro" {
+  region                      = var.region
+  ssh_username                = "ubuntu"
+  ena_support                 = true
+  instance_type               = var.arm_instance_type
+  spot_price                  = var.spot_price
+  subnet_id                   = var.subnet_id
+  security_group_id           = var.security_group_id
+  associate_public_ip_address = var.associate_public_ip
+  ami_regions                 = var.additional_regions
+
+  # Start from the already-hardened ARM base AMI
+  source_ami = data.amazon-ami.base_arm.id
+
+  # Enforce IMDSv2
+  metadata_options {
+    http_tokens                 = "required"
+    http_endpoint               = "enabled"
+    http_put_response_hop_limit = 1
+  }
+
+  encrypt_boot = var.encrypt_ebs
+  kms_key_id   = var.kms_key_id
+
+  launch_block_device_mappings {
+    device_name           = "/dev/sda1"
+    volume_size           = var.root_volume_size
+    volume_type           = "gp3"
+    encrypted             = var.encrypt_ebs
+    kms_key_id            = var.kms_key_id
+    delete_on_termination = true
+  }
+
+  ami_name        = "${local.arm_base_name}-pro-{{timestamp}}"
+  ami_description = "CPU DS/ML AMI (Pro, ARM64/Graviton) - Ubuntu 22.04, full DL stack (torch/tf/transformers), CIS-hardened"
+  tags = { Name = "${local.arm_base_name}-pro", Role = "dsml" }
 }
 
 # =======================
@@ -319,6 +421,190 @@ build {
   }
 }
 
+# =======================
+# ARM64 BASE IMAGE (minimal)
+# =======================
+# Identical to the x86 base build; only the source and AWS CLI download differ.
+# All scripts (harden.sh, build-base-envs.sh, ami-finalize.sh) are arch-agnostic.
+# Nix detects aarch64-linux automatically; the flake supports both architectures.
+build {
+  name    = "cpu-ds-ml-arm64-base"
+  sources = ["source.amazon-ebs.ubuntu_arm_base"]
+
+  provisioner "shell" {
+    inline = [
+      "sudo apt-get update",
+      "sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y",
+      "sudo reboot || true",
+    ]
+    expect_disconnect = true
+  }
+
+  provisioner "shell" {
+    pause_before = "30s"
+    inline = [
+      "echo 'Resumed after reboot — kernel: $(uname -r)'",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
+      "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
+      "sudo apt-get -y install openscap-scanner libopenscap8 ssg-debderived",
+      "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
+      "sudo systemctl enable auditd chrony unattended-upgrades",
+      "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
+      "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
+      "sudo sshd -t && sudo systemctl reload ssh || true",
+      "sudo mkdir -p /opt/venvs /usr/share",
+      "sudo chown -R ubuntu:ubuntu /opt/venvs",
+      "python3 -m venv /opt/venvs/py311",
+      "sudo chmod 755 /opt/venvs/py311",
+      # AWS CLI v2 — aarch64 build (PGP key is the same as x86)
+      "curl -fsSL 'https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip' -o /tmp/awscliv2.zip",
+      "curl -fsSL 'https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip.sig' -o /tmp/awscliv2.sig",
+      "gpg --keyserver hkps://keys.openpgp.org --recv-keys FB5DB77FD5C118B80511ADA8A6310ACC4672475C",
+      "gpg --verify /tmp/awscliv2.sig /tmp/awscliv2.zip",
+      "unzip -q /tmp/awscliv2.zip -d /tmp",
+      "sudo /tmp/aws/install",
+      "rm -rf /tmp/awscliv2.zip /tmp/awscliv2.sig /tmp/aws",
+      "curl -fsSL -o /tmp/install-nix.sh https://releases.nixos.org/nix/nix-2.24.9/install",
+      "yes | sudo -E sh /tmp/install-nix.sh --daemon || true",
+      "echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' | sudo tee /etc/profile.d/nix.sh",
+      "echo '. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' | sudo tee -a /home/ubuntu/.profile",
+      "sudo chown ubuntu:ubuntu /home/ubuntu/.profile || true",
+      "sudo systemctl enable nix-daemon || true",
+      "sudo systemctl start nix-daemon || true",
+    ]
+  }
+
+  provisioner "file" {
+    source      = "nix/flake.nix"
+    destination = "/tmp/flake.nix"
+  }
+  provisioner "file" {
+    source      = "scripts/spark-java.sh"
+    destination = "/tmp/spark-java.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/build-base-envs.sh"
+    destination = "/tmp/build-base-envs.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/ami-scan.sh"
+    destination = "/tmp/ami-scan.sh"
+  }
+  provisioner "file" {
+    source      = "examples/pyspark_basic.py"
+    destination = "/tmp/pyspark_basic.py"
+  }
+  provisioner "file" {
+    source      = "examples/pyspark_pi.py"
+    destination = "/tmp/pyspark_pi.py"
+  }
+  provisioner "file" {
+    source      = "harden.sh"
+    destination = "/tmp/harden.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "sudo chmod +x /tmp/harden.sh",
+      "sudo systemctl daemon-reload",
+      "sudo /tmp/harden.sh",
+      "sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh",
+      "sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan",
+      "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
+    ]
+  }
+
+  provisioner "shell" {
+    inline = [
+      "sudo mkdir -p /opt/nix/flake",
+      "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix flake lock /opt/nix/flake'",
+      "sudo chmod +x /tmp/build-base-envs.sh",
+      "sudo /tmp/build-base-envs.sh",
+      "sudo install -d -m 0755 /usr/share/examples/spark",
+      "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
+      "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
+      "sudo chmod 0644 /usr/share/examples/spark/pyspark_*.py",
+      "nix --version",
+      "/usr/local/bin/py311 -V",
+      "/usr/local/bin/py312 -V",
+      "/usr/local/bin/py313 -V",
+      "/usr/local/bin/py311 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py312 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py313 -c 'import pyspark; print(pyspark.__version__)'",
+      "java -version",
+      "spark-submit --version",
+      "julia -e 'println(VERSION)'",
+      "R --version",
+      "go version",
+      "rustc --version",
+      "cargo --version",
+      "node --version",
+      "echo VERSION=1.0.0-BASE-ARM64 | sudo tee /usr/share/BUILD_INFO",
+    ]
+  }
+
+  provisioner "file" {
+    source      = "scripts/ami-finalize.sh"
+    destination = "/tmp/ami-finalize.sh"
+  }
+  provisioner "file" {
+    source      = "SECURITY.md"
+    destination = "/tmp/SECURITY.md"
+  }
+  provisioner "shell" {
+    inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh base"]
+  }
+}
+
+# =======================
+# ARM64 PRO IMAGE (layers on ARM base)
+# =======================
+build {
+  name    = "cpu-ds-ml-arm64-pro"
+  sources = ["source.amazon-ebs.ubuntu_arm_pro"]
+
+  provisioner "file" {
+    source      = "scripts/build-pro-envs.sh"
+    destination = "/tmp/build-pro-envs.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/tune-pro.sh"
+    destination = "/tmp/tune-pro.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/smoke-pro.sh"
+    destination = "/tmp/smoke-pro.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
+      "sudo /tmp/build-pro-envs.sh",
+      "sudo /tmp/tune-pro.sh",
+      "/tmp/smoke-pro.sh",
+      "/usr/local/bin/py311 -V",
+      "/usr/local/bin/py312 -V",
+      "/usr/local/bin/py313 -V",
+      "java -version",
+      "spark-submit --version",
+      "echo VERSION=1.0.0-PRO-ARM64 | sudo tee /usr/share/BUILD_INFO",
+    ]
+  }
+
+  provisioner "file" {
+    source      = "scripts/ami-finalize.sh"
+    destination = "/tmp/ami-finalize.sh"
+  }
+  provisioner "file" {
+    source      = "SECURITY.md"
+    destination = "/tmp/SECURITY.md"
+  }
+  provisioner "shell" {
+    inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh pro"]
+  }
+}
+
 # c6i.xlarge: 4 vCPU / 8 GB — 2x faster Nix builds vs m6i.large at similar cost.
 # Use spot_price="auto" in vars to cut build cost by ~70% with Spot pricing.
 variable "instance_type"    { default = "c6i.xlarge" }
@@ -341,3 +627,5 @@ variable "additional_regions" {
   type    = list(string)
   default = []
 }
+# c7g.xlarge: Graviton3, 4 vCPU / 8 GB — same spec class as c6i.xlarge used for x86.
+variable "arm_instance_type" { default = "c7g.xlarge" }

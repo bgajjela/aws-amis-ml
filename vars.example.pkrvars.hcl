@@ -9,9 +9,13 @@ region = "us-east-1"
 # additional_regions = ["us-west-2", "eu-west-1", "ap-southeast-1", "ap-northeast-1"]
 
 # ── Build instance ──────────────────────────────────────────────────────────
-# c6i.xlarge (4 vCPU / 8 GB) is the default — good balance of speed and cost.
+# x86 (default): c6i.xlarge (4 vCPU / 8 GB)
 # c6i.2xlarge (8 vCPU / 16 GB) for faster Nix builds if budget allows.
 instance_type = "c6i.xlarge"
+
+# ARM64/Graviton (default): c7g.xlarge (Graviton3, 4 vCPU / 8 GB)
+# c7g.2xlarge (8 vCPU / 16 GB) for faster Nix builds on ARM.
+# arm_instance_type = "c7g.xlarge"
 
 # ── Spot pricing (set "auto" to bid on-demand price — saves ~70%) ───────────
 spot_price = "auto"
