@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # Static CIS compliance check — greps harden.sh for each control.
 # Run from repo root: bash tests/cis-check.sh
 set -euo pipefail

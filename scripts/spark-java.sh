@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # shellcheck shell=bash
 # Spark/Java environment for interactive login shells (Java 21 LTS).
 #

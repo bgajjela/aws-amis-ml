@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # build-base-envs.sh — parallel Nix builds for all base Python envs and language
 # toolchains.  All packages resolve from cache.nixos.org (binary cache), so each
 # build is mostly download-bound.  Firing them all simultaneously cuts the Nix

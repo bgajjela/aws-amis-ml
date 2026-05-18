@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # build-pro-envs.sh — creates pro Python envs layered on top of the base Nix envs.
 #
 # Strategy: venv --system-site-packages inherits base packages (numpy, pandas,
