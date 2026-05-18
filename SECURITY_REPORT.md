@@ -9,6 +9,22 @@ DB is present at `/var/lib/aide/aide.db`.
 Applied by: `harden.sh` (base AMI), `tune-pro.sh` (Pro AMI additional tuning)  
 Verified by: `sudo ami-scan` (Trivy + OpenSCAP, available on every instance)
 
+## Architectures Covered
+
+This report applies equally to both published AMI families:
+
+| Architecture | Instance family | AMI name pattern |
+|---|---|---|
+| x86\_64 (Intel/AMD) | c6i | `cpu-ds-ml-ubuntu-2204-{base\|pro}-<timestamp>` |
+| ARM64 / Graviton3 | c7g | `cpu-ds-ml-ubuntu-2204-arm64-{base\|pro}-<timestamp>` |
+
+Both architectures are built from **identical scripts**: `harden.sh`, `tune-pro.sh`,
+`build-base-envs.sh`, `build-pro-envs.sh`, `smoke-pro.sh`, and `ami-finalize.sh`.
+The only build-time difference is the AWS CLI download URL (`aarch64` vs `x86_64`)
+and the Ubuntu source AMI filter (`arm64-server` vs `amd64-server`). All hardening
+controls, sysctl settings, service masking, audit rules, and AMI scrub steps are
+identical across both architectures.
+
 ---
 
 ## SSH Hardening
@@ -142,6 +158,11 @@ Systemd defaults mirror PAM limits via `/etc/systemd/system.conf.d/99-limits.con
 Watch rules: identity files, sudoers, `sshd_config`, sysctl, audit config, time
 changes, kernel module loads. Rules set immutable at boot. GRUB `audit=1` enables
 kernel-level syscall auditing from the earliest boot stage.
+
+All syscall rules use both `arch=b64` and `arch=b32` filters — on x86\_64 this
+covers 64-bit and 32-bit compat syscalls; on ARM64 (aarch64) `arch=b64` maps to
+native 64-bit syscalls and `arch=b32` covers AArch32 compat. Both architectures
+produce equivalent audit coverage.
 
 - Verify:
   ```
