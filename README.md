@@ -1,5 +1,8 @@
 # CPU DS/ML AMI (Ubuntu 22.04) — Hardened + Nix Managed
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bgajjela/aws-amis-ml/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bgajjela/aws-amis-ml)
+[![CI](https://github.com/bgajjela/aws-amis-ml/actions/workflows/ci.yml/badge.svg)](https://github.com/bgajjela/aws-amis-ml/actions/workflows/ci.yml)
+
 CIS-aligned Ubuntu 22.04 AMI for CPU-based data science and ML workloads.
 Reproducible language environments via Nix. Built for AWS Marketplace.
 Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g family).
