@@ -57,6 +57,29 @@ Any PR that adds major new functionality MUST include a corresponding test in `t
 
 Do not open a public issue. See [SECURITY.md](SECURITY.md) for the private disclosure process.
 
+## Code review standards
+
+All proposed changes MUST be submitted as a pull request against `main`. Direct pushes to `main` are blocked by branch protection.
+
+**What reviewers check:**
+
+- ShellCheck passes at `-S warning` — no new warnings introduced
+- CIS compliance check (`bash tests/cis-check.sh`) passes — 0 FAIL
+- Any new hardening control references the CIS benchmark control ID in a comment
+- No secrets, credentials, or AWS account IDs introduced
+- SPDX license header present on any new source files
+- DCO `Signed-off-by` present on all commits
+
+**Acceptance criteria:**
+
+- CI must pass (ShellCheck + CIS check + Trivy + Packer validate + Checkov)
+- At least one approving review required before merge
+- Changes to `harden.sh` must explain which CIS control is being added or modified
+
+**Review process:**
+
+The maintainer reviews all PRs. For security-sensitive changes (hardening controls, CI pipeline, dependency updates), a detailed explanation of the change and its security impact is required in the PR description.
+
 ## Developer Certificate of Origin (DCO)
 
 All contributions must be signed off to certify that you wrote the contribution or have the right to submit it under the project license. Add a `Signed-off-by` line to every commit:
