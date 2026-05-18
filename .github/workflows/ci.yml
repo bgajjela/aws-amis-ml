@@ -61,6 +61,14 @@ jobs:
             -var security_group_id=sg-placeholder \
             .
 
+      - name: Checkov — Packer IaC misconfiguration scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          file: packer.pkr.hcl
+          framework: packer
+          soft_fail: false
+          quiet: true
+
   # Optional: build AMIs on tagged releases when AWS credentials are configured.
   # Uncomment and add AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION
   # as repository secrets to enable.
