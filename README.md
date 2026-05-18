@@ -1,6 +1,7 @@
 # CPU DS/ML AMI (Ubuntu 22.04) — Hardened + Nix Managed
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/bgajjela/aws-amis-ml/badge)](https://securityscorecards.dev/viewer/?uri=github.com/bgajjela/aws-amis-ml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12885/badge)](https://www.bestpractices.dev/projects/12885)
 [![CI](https://github.com/bgajjela/aws-amis-ml/actions/workflows/ci.yml/badge.svg)](https://github.com/bgajjela/aws-amis-ml/actions/workflows/ci.yml)
 
 CIS-aligned Ubuntu 22.04 AMI for CPU-based data science and ML workloads.
