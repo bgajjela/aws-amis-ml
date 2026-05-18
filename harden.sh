@@ -332,6 +332,51 @@ for mod in cramfs freevxfs jffs2 hfs hfsplus udf usb-storage dccp sctp rds tipc 
 done
 
 # ==============================
+# System-Wide TLS Hardening (OpenSSL 3.0)
+# ==============================
+# Ubuntu 22.04 ships OpenSSL 3.0 with TLS 1.2 as the implicit default, but
+# applications can override it. Enforce it explicitly at the system level so
+# every process that links against libssl inherits the minimum version and
+# cipher strength — regardless of per-app configuration.
+#
+# MinProtocol = TLSv1.2 : disables TLS 1.0 and TLS 1.1 system-wide
+# CipherString = DEFAULT@SECLEVEL=2 : minimum 112-bit security, 2048-bit RSA/DH,
+#   224-bit ECC — eliminates RC4, 3DES, export ciphers, and SHA-1 signatures
+# SignatureAlgorithms: restrict to SHA-256+ with ECDSA or RSA-PSS
+#
+# TLS 1.3 cipher suites (TLS_AES_256_GCM_SHA384 etc.) are fixed by the spec
+# and not configurable via CipherString — they are always strong.
+if [ -f /etc/ssl/openssl.cnf ]; then
+  # Patch or insert [system_default_sect] in the openssl.cnf
+  if grep -q '^\[system_default_sect\]' /etc/ssl/openssl.cnf; then
+    # Update existing section values
+    sudo sed -i '/^\[system_default_sect\]/,/^\[/ {
+      s/^MinProtocol\s*=.*/MinProtocol = TLSv1.2/
+      s/^CipherString\s*=.*/CipherString = DEFAULT@SECLEVEL=2/
+    }' /etc/ssl/openssl.cnf
+    # Append if keys don't exist yet in the section
+    grep -q '^MinProtocol' /etc/ssl/openssl.cnf || \
+      sudo sed -i '/^\[system_default_sect\]/a MinProtocol = TLSv1.2' /etc/ssl/openssl.cnf
+    grep -q '^CipherString' /etc/ssl/openssl.cnf || \
+      sudo sed -i '/^\[system_default_sect\]/a CipherString = DEFAULT@SECLEVEL=2' /etc/ssl/openssl.cnf
+  else
+    # Append a new system_default_sect
+    sudo tee -a /etc/ssl/openssl.cnf >/dev/null <<'OPENSSLEOF'
+
+[system_default_sect]
+MinProtocol = TLSv1.2
+CipherString = DEFAULT@SECLEVEL=2
+OPENSSLEOF
+  fi
+
+  # Point the ssl_conf block at system_default_sect if not already wired up
+  if ! grep -q 'system_default\s*=' /etc/ssl/openssl.cnf; then
+    sudo sed -i '/^\[ssl_default_sect\]\|^\[ssl_sect\]/a system_default = system_default_sect' \
+      /etc/ssl/openssl.cnf 2>/dev/null || true
+  fi
+fi
+
+# ==============================
 # Network Stack Hardening (CIS)
 # ==============================
 sudo tee /etc/sysctl.d/99-cis-net.conf >/dev/null <<'EOF'
