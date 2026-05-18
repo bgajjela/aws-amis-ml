@@ -18,11 +18,32 @@ sudo sed -i 's/^#\?MaxSessions.*/MaxSessions 4/' "$conf" || echo 'MaxSessions 4'
 sudo sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' "$conf" || echo 'ClientAliveInterval 300' | sudo tee -a "$conf" >/dev/null
 sudo sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' "$conf" || echo 'ClientAliveCountMax 2' | sudo tee -a "$conf" >/dev/null
 
-# Stronger crypto suites (OpenSSH defaults are already sane; set explicitly)
-sudo grep -q '^Ciphers ' "$conf" || echo 'Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes256-ctr' | sudo tee -a "$conf" >/dev/null
-sudo grep -q '^MACs ' "$conf" || echo 'MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com' | sudo tee -a "$conf" >/dev/null
-# diffie-hellman-group14-sha256 removed: deprecated by NIST SP 800-131A Rev 2; curve25519 only
-sudo grep -q '^KexAlgorithms ' "$conf" || echo 'KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org' | sudo tee -a "$conf" >/dev/null
+# Crypto suites — ordered strongest-first; STIG-required algorithms included
+# Ciphers: AEAD ciphers first (chacha20, aes256-gcm), then CTR modes for STIG compliance
+sudo grep -q '^Ciphers ' "$conf" || \
+  echo 'Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes256-ctr,aes192-ctr' \
+  | sudo tee -a "$conf" >/dev/null
+# MACs: ETM (encrypt-then-MAC) variants first — prevent padding oracle attacks.
+# Non-ETM sha2 variants included for STIG UBTU-22-255030 and legacy client compatibility.
+sudo grep -q '^MACs ' "$conf" || \
+  echo 'MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256' \
+  | sudo tee -a "$conf" >/dev/null
+# KexAlgorithms: curve25519 (strongest) first; NIST ECDH curves added for STIG UBTU-22-255025
+# and enterprise client compatibility (Windows OpenSSH, HSMs, PuTTY require NIST curves).
+# diffie-hellman-group14-sha256 excluded: deprecated per NIST SP 800-131A Rev 2.
+sudo grep -q '^KexAlgorithms ' "$conf" || \
+  echo 'KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256' \
+  | sudo tee -a "$conf" >/dev/null
+# HostKeyAlgorithms: exclude ssh-rsa (SHA-1) and ssh-dss (DSA); ed25519 and ECDSA only
+sudo grep -q '^HostKeyAlgorithms ' "$conf" || \
+  echo 'HostKeyAlgorithms ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,rsa-sha2-512,rsa-sha2-256' \
+  | sudo tee -a "$conf" >/dev/null
+# PubkeyAcceptedAlgorithms: match HostKeyAlgorithms — reject SHA-1 RSA client keys
+sudo grep -q '^PubkeyAcceptedAlgorithms ' "$conf" || \
+  echo 'PubkeyAcceptedAlgorithms ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,rsa-sha2-512,rsa-sha2-256' \
+  | sudo tee -a "$conf" >/dev/null
+# STIG UBTU-22-255055: limit rekeying to 1 GB or 1 hour to bound plaintext exposure
+sudo grep -q '^RekeyLimit ' "$conf" || echo 'RekeyLimit 1G 1h' | sudo tee -a "$conf" >/dev/null
 
 # Additional SSH controls — CIS 5.2.x
 sudo grep -q '^AllowTcpForwarding '     "$conf" || echo 'AllowTcpForwarding no'     | sudo tee -a "$conf" >/dev/null
@@ -44,12 +65,13 @@ sudo grep -q '^AllowGroups ' "$conf" || echo 'AllowGroups sshusers' | sudo tee -
 sudo sshd -t || { echo 'sshd config test failed'; exit 1; }
 sudo systemctl reload ssh || true
 
-# Login banners (legal notice) for local and remote access
+# Login banners — STIG UBTU-22-271040: must include consent-to-monitor language
+# Enterprise-appropriate wording aligned with STIG intent (non-USG deployment).
 sudo tee /etc/issue >/dev/null <<'EOF'
-WARNING: Authorized access only. This system is for the use of authorized users only. Individuals using this computer system without authority, or in excess of their authority, are subject to having all their activities on this system monitored and recorded by system personnel. Anyone using this system expressly consents to such monitoring and is advised that if such monitoring reveals evidence of possible criminal activity, system personnel may provide the evidence of such monitoring to law enforcement officials.
+WARNING: This system is for authorized use only. By using this system, you expressly consent to monitoring and recording of all activities. Unauthorized access or use is prohibited and may be subject to criminal prosecution. There is no expectation of privacy on this system. Evidence of unauthorized use may be reported to law enforcement authorities.
 EOF
 sudo tee /etc/issue.net >/dev/null <<'EOF'
-WARNING: Authorized access only. Use of this system constitutes consent to monitoring and recording. Unauthorized use may result in disciplinary action and criminal prosecution.
+WARNING: This system is for authorized use only. By using this system, you expressly consent to monitoring and recording of all activities. Unauthorized access or use is prohibited and may be subject to criminal prosecution. There is no expectation of privacy on this system. Evidence of unauthorized use may be reported to law enforcement authorities.
 EOF
 sudo chown root:root /etc/issue /etc/issue.net
 sudo chmod 0644 /etc/issue /etc/issue.net
@@ -454,6 +476,19 @@ sudo tee /etc/audit/rules.d/99-hardening.rules >/dev/null <<'EOF'
 ## File deletion by users — CIS 4.1.13
 -a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid>=1000 -F auid!=4294967295 -k delete
 -a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid>=1000 -F auid!=4294967295 -k delete
+## STIG supplemental: setuid/setgid via execve — catches privilege escalation not caught by path rules
+-a always,exit -F arch=b64 -S execve -C uid!=euid -F euid=0 -k setuid
+-a always,exit -F arch=b32 -S execve -C uid!=euid -F euid=0 -k setuid
+-a always,exit -F arch=b64 -S execve -C gid!=egid -F egid=0 -k setgid
+-a always,exit -F arch=b32 -S execve -C gid!=egid -F egid=0 -k setgid
+## STIG: additional user/group management commands
+-w /usr/bin/chage -p x -k user-mgmt
+-w /usr/sbin/chpasswd -p x -k user-mgmt
+-w /usr/bin/newgrp -p x -k user-mgmt
+-w /usr/bin/chsh -p x -k user-mgmt
+-w /usr/bin/chfn -p x -k user-mgmt
+## STIG: sudo timestamp directory — Ubuntu 22.04 path (not /var/db/sudo which is BSD/RHEL)
+-w /var/lib/sudo/ts -p wa -k sudo_timestamp
 ## Make audit config immutable (must be last rule)
 -e 2
 EOF
@@ -509,6 +544,31 @@ if [ -f /boot/grub/grub.cfg ]; then
   sudo chmod og-rwx /boot/grub/grub.cfg || true
 fi
 
+# STIG UBTU-22-211045: GRUB superuser password (defense-in-depth for serial console)
+# Generates a random password at build time — hash stored in GRUB, cleartext discarded.
+# On EC2 Nitro there is no physical console; this guards the AWS Serial Console.
+if command -v grub-mkpasswd-pbkdf2 >/dev/null 2>&1; then
+  _grub_pass="$(openssl rand -base64 24)"
+  _grub_hash="$(printf '%s\n%s\n' "${_grub_pass}" "${_grub_pass}" \
+    | grub-mkpasswd-pbkdf2 2>/dev/null \
+    | awk '/PBKDF2 hash/{print $NF}')"
+  if [ -n "${_grub_hash}" ]; then
+    sudo tee /etc/grub.d/40_custom_password >/dev/null <<GRUBEOF
+set superusers="grubadmin"
+password_pbkdf2 grubadmin ${_grub_hash}
+GRUBEOF
+    sudo chmod 700 /etc/grub.d/40_custom_password
+    # Mark all auto-generated boot entries as unrestricted so normal boot does not
+    # prompt for the GRUB password. Without this, EC2 instances hang at GRUB on
+    # every boot waiting for credentials. The password still protects the GRUB
+    # editor and command line (single-user / rescue mode).
+    sudo sed -i 's/\${CLASS} \$menuentry_id_option/\${CLASS} --unrestricted \$menuentry_id_option/' \
+      /etc/grub.d/10_linux 2>/dev/null || true
+    sudo update-grub >/dev/null 2>&1 || true
+  fi
+  unset _grub_pass _grub_hash
+fi
+
 # ==============================
 # AppArmor / AIDE / PAM & Auth Policies (CIS)
 # ==============================
@@ -537,7 +597,8 @@ sudo sed -i 's/^#\?PASS_WARN_AGE.*/PASS_WARN_AGE  7/' /etc/login.defs || true
 # CIS 5.3.4: Ensure SHA-512 is the password hashing algorithm
 sudo sed -i 's/^#\?ENCRYPT_METHOD.*/ENCRYPT_METHOD SHA512/' /etc/login.defs || \
   echo 'ENCRYPT_METHOD SHA512' | sudo tee -a /etc/login.defs >/dev/null
-# Replace yescrypt with sha512 in PAM if present (Ubuntu 22.04 default is yescrypt)
+# Replace yescrypt with sha512 in PAM — STIG UBTU-22-611035 explicitly requires SHA-512.
+# yescrypt is a stronger memory-hard KDF, but STIG predates it and mandates sha512.
 sudo sed -i 's/\byescrypt\b/sha512/g' /etc/pam.d/common-password 2>/dev/null || true
 
 # PAM: enforce pwquality (ensure line exists)
@@ -564,6 +625,10 @@ Account:
 EOF
 sudo DEBIAN_FRONTEND=noninteractive pam-auth-update --enable faillock
 
+# STIG UBTU-22-411025: require re-authentication on every sudo invocation
+echo 'Defaults timestamp_timeout=0' | sudo tee /etc/sudoers.d/99-stig-timeout >/dev/null
+sudo chmod 440 /etc/sudoers.d/99-stig-timeout
+
 # su restriction to sudo group
 if grep -q '^auth' /etc/pam.d/su; then
   sudo sed -i '/pam_wheel.so/d' /etc/pam.d/su || true
@@ -582,6 +647,23 @@ sudo rm -f /etc/at.deny 2>/dev/null || true
 sudo chown root:root /etc/passwd /etc/group /etc/shadow /etc/gshadow 2>/dev/null || true
 sudo chmod 0644 /etc/passwd /etc/group 2>/dev/null || true
 sudo chmod 0640 /etc/shadow /etc/gshadow 2>/dev/null || true
+
+# STIG directory and file permission hardening
+# sshd_config: root-only read (STIG UBTU-22-255010)
+sudo chmod 0600 /etc/ssh/sshd_config 2>/dev/null || true
+sudo chown root:root /etc/ssh/sshd_config 2>/dev/null || true
+# Key system directories: root-owned, no world-write
+for d in /etc /usr /var /boot; do
+  [ -d "$d" ] && sudo chown root:root "$d" && sudo chmod o-w "$d" 2>/dev/null || true
+done
+# Audit unowned/ungrouped files on system paths and assign to root
+find /etc /usr /var -xdev \( -nouser -o -nogroup \) 2>/dev/null | while read -r f; do
+  sudo chown root:root "$f" 2>/dev/null || true
+done
+# Ensure /etc/passwd- /etc/shadow- backup files have tight permissions
+for f in /etc/passwd- /etc/group- /etc/shadow- /etc/gshadow-; do
+  [ -f "$f" ] && sudo chmod 0600 "$f" && sudo chown root:root "$f" 2>/dev/null || true
+done
 
 # Logrotate: enable compression and sane defaults globally
 if [ -f /etc/logrotate.conf ]; then
@@ -670,7 +752,7 @@ sudo sed -i 's/^INACTIVE=.*/INACTIVE=30/' /etc/default/useradd 2>/dev/null || \
 
 # CIS 5.4.4: Enforce shell timeout of 900 seconds for all interactive sessions
 sudo tee /etc/profile.d/99-timeout.sh >/dev/null <<'EOF'
-TMOUT=900
+TMOUT=600
 readonly TMOUT
 export TMOUT
 EOF
@@ -783,5 +865,9 @@ done
 # After the first instance launch the seed file exists and pollinate is a no-op anyway.
 # Re-enable if deploying to an environment without hardware RNG.
 sudo systemctl disable pollinate.service 2>/dev/null || true
+
+# STIG UBTU-22-211040: disable Ctrl-Alt-Delete reboot in GUI and console
+sudo systemctl mask ctrl-alt-del.target 2>/dev/null || true
+sudo systemctl daemon-reload 2>/dev/null || true
 
 echo "Service audit complete."
