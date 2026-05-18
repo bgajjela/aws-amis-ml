@@ -76,12 +76,67 @@ print(',\n'.join(lines))
 sudo chmod 644 /usr/share/BUILD_INFO/sbom.cyclonedx.json
 
 # ==============================
+# OSS License Notices
+# ==============================
+# Required by EULA.txt reference and standard open-source attribution practice.
+sudo tee /usr/share/OSS_NOTICES.md >/dev/null <<'OSSEOF'
+# Open-Source Attribution Notices — CPU DS/ML AMI
+
+This AMI includes open-source software distributed under the licenses listed
+below. Full license texts are available from the upstream project repositories.
+
+| Component | License | Source |
+|---|---|---|
+| Ubuntu 22.04 LTS | Various (GPL, LGPL, MIT, Apache 2.0) | https://ubuntu.com |
+| Python 3.11 / 3.12 / 3.13 | PSF License | https://python.org |
+| NumPy | BSD 3-Clause | https://numpy.org |
+| pandas | BSD 3-Clause | https://pandas.pydata.org |
+| scikit-learn | BSD 3-Clause | https://scikit-learn.org |
+| Apache Spark 3.5.x | Apache 2.0 | https://spark.apache.org |
+| PySpark | Apache 2.0 | https://spark.apache.org |
+| PyArrow | Apache 2.0 | https://arrow.apache.org |
+| Polars | MIT | https://pola.rs |
+| OpenCV | Apache 2.0 | https://opencv.org |
+| onnxruntime | MIT | https://onnxruntime.ai |
+| Matplotlib | PSF / BSD | https://matplotlib.org |
+| Seaborn | BSD 3-Clause | https://seaborn.pydata.org |
+| PyTorch (Pro) | BSD 3-Clause | https://pytorch.org |
+| TensorFlow (Pro) | Apache 2.0 | https://tensorflow.org |
+| Transformers (Pro) | Apache 2.0 | https://huggingface.co/transformers |
+| XGBoost (Pro) | Apache 2.0 | https://xgboost.readthedocs.io |
+| LightGBM (Pro) | MIT | https://lightgbm.readthedocs.io |
+| MLflow (Pro) | Apache 2.0 | https://mlflow.org |
+| OpenJDK / Eclipse Temurin 21 | GPL 2.0 + CE | https://adoptium.net |
+| Julia | MIT | https://julialang.org |
+| Go | BSD 3-Clause | https://go.dev |
+| Rust / Cargo | MIT / Apache 2.0 | https://rust-lang.org |
+| Nix | LGPL 2.1 | https://nixos.org |
+| AWS CLI v2 | Apache 2.0 | https://github.com/aws/aws-cli |
+| Trivy | Apache 2.0 | https://github.com/aquasecurity/trivy |
+| OpenSCAP | LGPL 2.1 | https://www.open-scap.org |
+| OpenSSH | BSD / ISC | https://openssh.com |
+| OpenSSL | Apache 2.0 | https://openssl.org |
+| auditd | GPL 2.0 | https://github.com/linux-audit/audit-userspace |
+| AppArmor | GPL 2.0 | https://apparmor.net |
+| AIDE | GPL 2.0 | https://aide.github.io |
+| fail2ban | GPL 2.0 | https://fail2ban.org |
+| UFW | GPL 3.0 | https://launchpad.net/ufw |
+
+The full list of installed packages and versions is at:
+  /usr/share/BUILD_INFO/packages.txt
+
+The CycloneDX SBOM (machine-readable) is at:
+  /usr/share/BUILD_INFO/sbom.cyclonedx.json
+OSSEOF
+sudo chmod 644 /usr/share/OSS_NOTICES.md
+
+# ==============================
 # EULA / Subscriber License
 # ==============================
 sudo tee /usr/share/BUILD_INFO/EULA.txt >/dev/null <<'EOF'
 CPU DS/ML AMI — License Notice
 ===============================
-Copyright (c) 2025. All rights reserved.
+Copyright (c) 2026 Dimenpoint. All rights reserved.
 
 GOVERNING AGREEMENT
 This AMI is licensed under the AWS Standard Contract for AWS Marketplace
@@ -167,15 +222,16 @@ sudo chmod 644 /usr/share/BUILD_INFO/EAR-classification.txt
 # ==============================
 sudo tee /etc/update-motd.d/99-ami-notice >/dev/null <<'EOF'
 #!/bin/sh
-cat <<'NOTICE'
+BUILD=$(cat /usr/share/BUILD_INFO 2>/dev/null || echo unknown)
+cat <<NOTICE
 
  +------------------------------------------------------------+
  |          CPU DS/ML AMI  --  Authorized Use Only           |
- |   Copyright (c) 2025. Licensed via AWS Standard Contract. |
+ |   Copyright (c) 2026 Dimenpoint. AWS Standard Contract.  |
  |   Reverse engineering or redistribution is prohibited.    |
  |   Full terms: /usr/share/BUILD_INFO/EULA.txt              |
  +------------------------------------------------------------+
- |  Build: $(cat /usr/share/BUILD_INFO 2>/dev/null || echo unknown)
+ |  Build: ${BUILD}
  |  Security advisories: /usr/share/BUILD_INFO/SECURITY.md   |
  +------------------------------------------------------------+
 
