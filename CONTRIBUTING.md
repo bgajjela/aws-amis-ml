@@ -33,11 +33,25 @@ cp vars.example.pkrvars.hcl my.pkrvars.hcl   # fill in subnet_id, security_group
    ```
 4. Open a pull request against `main` — describe the control ID or use case your change addresses
 
+## Coding standards
+
+Primary language is Bash/shell. All shell scripts must comply with [ShellCheck](https://www.shellcheck.net/) at `-S warning` severity (the strictest practical level). ShellCheck enforces this automatically on every CI push.
+
+General rules:
+- Use `#!/usr/bin/env bash` shebangs
+- Quote all variable expansions: `"${var}"` not `$var`
+- Use `[[ ]]` for conditionals, not `[ ]`
+- Prefer `$(command)` over backticks
+
 ## Hardening script conventions
 
 - All `harden.sh` changes must reference the CIS benchmark control ID in a comment
 - `sysctl` changes go in the sysctl block, not ad hoc inline
 - Kernel module blacklists go in `/etc/modprobe.d/cis-blacklist.conf`
+
+## Testing requirements
+
+Any PR that adds major new functionality MUST include a corresponding test in `tests/cis-check.sh` or a new test script under `tests/`. Bug fixes MUST include a regression test where technically feasible.
 
 ## Reporting security vulnerabilities
 
