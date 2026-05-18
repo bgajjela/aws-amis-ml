@@ -2,6 +2,7 @@
 
 CIS-hardened Ubuntu 22.04 AMI for CPU-based data science and ML workloads.
 Reproducible language environments via Nix. Built for AWS Marketplace.
+Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g family).
 
 ## Highlights
 
@@ -25,6 +26,12 @@ Reproducible language environments via Nix. Built for AWS Marketplace.
 - IMDSv2 enforced; EBS encrypted at rest (KMS); AppArmor enforcing; AIDE initialized
 - Boot footprint: multipathd, fwupd, snapd, apport, iscsid, motd-news disabled — saves ~5–8s per boot
 - On-demand scanner: `sudo ami-scan` (Trivy CVE + OpenSCAP CIS) — no boot hooks, no auto-run
+
+**Architectures**
+- x86_64 — `c6i.xlarge` (Intel, 4 vCPU / 8 GB) · AMI names: `cpu-ds-ml-ubuntu-2204-{base|pro}-<ts>`
+- ARM64/Graviton3 — `c7g.xlarge` (4 vCPU / 8 GB) · AMI names: `cpu-ds-ml-ubuntu-2204-arm64-{base|pro}-<ts>`
+- Both architectures share identical scripts: same CIS hardening, same tuning, same smoke tests
+- ARM64 PyTorch installed from PyPI (first-class `linux_aarch64` wheels); x86 from WHL index
 
 **Compliance**
 - CIS Hardened (114 controls), CycloneDX SBOM baked in
@@ -184,18 +191,21 @@ Reproducible language environments via Nix. Built for AWS Marketplace.
   ║               ╚══════════════════════════════════╝                      ║
   ╚══════════════════════════════════════════════════════════════════════════╝
 
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │  Build Summary  ·  c6i.xlarge (4 vCPU / 8 GB)  ·  Spot (~70% savings)  │
-  ├─────────────────────┬──────────────────────────────┬────────────────────┤
-  │  AMI                │  Wall-clock time             │  Cost at Spot      │
-  ├─────────────────────┼──────────────────────────────┼────────────────────┤
-  │  Base               │  ~20–24 min                  │  ~$0.024           │
-  │  Pro (after base)   │  ~22–27 min                  │  ~$0.027           │
-  │  Both (sequential)  │  ~42–51 min                  │  ~$0.051           │
-  ├─────────────────────┴──────────────────────────────┴────────────────────┤
-  │  Boot time (RunInstances → SSH ready): ~20–30s                          │
-  │  On-demand scan: sudo ami-scan  ·  results → /var/log/ami-scan/         │
-  └──────────────────────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────────────────────────┐
+  │  Build Summary  ·  Spot pricing (~70% savings)                               │
+  ├──────────────────────────┬────────────────────┬────────────┬─────────────────┤
+  │  AMI                     │  Instance          │  Time      │  Cost at Spot   │
+  ├──────────────────────────┼────────────────────┼────────────┼─────────────────┤
+  │  x86 Base                │  c6i.xlarge        │  ~20–24min │  ~$0.024        │
+  │  x86 Pro (after base)    │  c6i.xlarge        │  ~22–27min │  ~$0.027        │
+  ├──────────────────────────┼────────────────────┼────────────┼─────────────────┤
+  │  ARM64 Base              │  c7g.xlarge        │  ~22–28min │  ~$0.016        │
+  │  ARM64 Pro (after base)  │  c7g.xlarge        │  ~24–30min │  ~$0.018        │
+  ├──────────────────────────┴────────────────────┴────────────┴─────────────────┤
+  │  Boot time (RunInstances → SSH ready): ~20–30s on both architectures         │
+  │  ARM64 Spot is ~35% cheaper than x86 Spot at equivalent vCPU/RAM spec        │
+  │  On-demand scan: sudo ami-scan  ·  results → /var/log/ami-scan/              │
+  └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -204,7 +214,7 @@ Reproducible language environments via Nix. Built for AWS Marketplace.
 
 ```
 .
-├── packer.pkr.hcl          Packer template — base and pro amazon-ebs builds
+├── packer.pkr.hcl          Packer template — base + pro builds for x86 and ARM64
 ├── harden.sh               CIS L1+L2 hardening (114 controls), service audit
 ├── nix/
 │   └── flake.nix           Nix flake — Python envs + toolchains (nixos-25.05)
@@ -245,20 +255,35 @@ packer validate .
 packer inspect .
 ```
 
+**x86_64 (Intel/AMD — c6i family):**
 ```bash
-# Build base first (always required before pro)
+# Build base first, then pro (pro layers on top of base)
 packer build -only=cpu-ds-ml-base .
-
-# Build pro (auto-discovers latest base AMI via data source)
 packer build -only=cpu-ds-ml-pro .
+
+# Or via Makefile
+make build-base
+make build-pro
+```
+
+**ARM64/Graviton (c7g family):**
+```bash
+# Same flow — base first, then pro
+packer build -only=cpu-ds-ml-arm64-base .
+packer build -only=cpu-ds-ml-arm64-pro .
+
+# Or via Makefile
+make build-arm-base
+make build-arm-pro
 ```
 
 **Variables** (`vars.example.pkrvars.hcl` → copy to `vars.pkrvars.hcl`):
 
 | Variable | Default | Notes |
 |---|---|---|
-| `instance_type` | `c6i.xlarge` | Use `c6i.2xlarge` for ~30% faster Nix builds |
-| `spot_price` | `""` | Set `"auto"` to cut build cost ~70% |
+| `instance_type` | `c6i.xlarge` | x86 build instance; `c6i.2xlarge` for ~30% faster builds |
+| `arm_instance_type` | `c7g.xlarge` | ARM64 build instance; `c7g.2xlarge` for faster builds |
+| `spot_price` | `""` | Set `"auto"` to cut build cost ~70% on both arches |
 | `root_volume_size` | `24` | GB; increase for large pip caches |
 | `encrypt_ebs` | `true` | EBS encryption at rest |
 | `kms_key_id` | `""` | CMK ARN; empty = AWS-managed key |
