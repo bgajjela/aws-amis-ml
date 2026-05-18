@@ -107,6 +107,60 @@ For the full control list see `SECURITY_REPORT.md`.
 
 ---
 
+## Verifying release signatures
+
+All releases are GPG-signed. To verify:
+
+```bash
+# 1. Import the maintainer's public key
+gpg --keyserver keyserver.ubuntu.com --recv-keys 32BCD1C307771BAD
+
+# 2. Verify the signed tag
+git fetch --tags
+git tag -v 1.0.0
+```
+
+Expected output includes: `Good signature from "Bharath Kumar Gajjela <bgajjela@gmail.com>"`
+
+The public key fingerprint is: `C06D 6AF1 DA1E E331 3768 2DF0 32BC D1C3 0777 1BAD`
+
+---
+
+## Assurance case
+
+### Threat model
+
+| Threat | Mitigations |
+|--------|-------------|
+| Local privilege escalation | ASLR enabled, core dumps restricted, kernel module blacklist (algif_aead), sudo timestamp_timeout, CIS L2 controls |
+| Lateral movement via SSH | SSHv2 only, key-based auth, root login disabled, HostKeyAlgorithms restricted, SSM-only recommended |
+| Supply chain compromise | AWS CLI verified via PGP, Trivy installed via pinned commit SHA, all CI actions pinned by commit SHA, CycloneDX SBOM |
+| SSRF / metadata abuse | IMDSv2 enforced — token-required, no v1 fallback |
+| Credential exposure | ami-finalize.sh wipes SSH host keys, bash history, and cloud-init state before snapshot |
+| Vulnerable packages | Trivy CVE scan in CI (HIGH/CRITICAL exit-code 1), unattended-upgrades on running instances |
+| Misconfigured infrastructure | Checkov Packer IaC scan in CI |
+
+### Trust boundaries
+
+- **Outside trust boundary**: the AWS hypervisor, EC2 network, upstream Ubuntu package mirrors, external Nix package cache
+- **Inside trust boundary**: AMI build process, provisioner scripts, Nix environments, hardening controls
+
+### Secure design principles applied
+
+- **Least privilege**: no root SSH, sudo timestamp_timeout, restricted kernel modules, IMDSv2 token-required
+- **Defense in depth**: CIS L1+L2 + STIG-aligned additions + Trivy + unattended-upgrades — multiple independent layers
+- **Fail secure**: Trivy HIGH/CRITICAL findings fail CI hard; Packer build fails on provisioner errors
+- **Minimal attack surface**: SSM-only access (no open port 22), unnecessary kernel modules blacklisted, unused services disabled
+
+### Common implementation weaknesses countered
+
+- **Injection**: ShellCheck enforces proper quoting and variable expansion in all scripts
+- **Insecure defaults**: All hardening applied at build time — instances launch hardened, not hardened later
+- **Broken cryptography**: SHA-1, MD5, RC4, CBC mode SSH disabled; TLS 1.2 minimum enforced
+- **Exposed credentials**: Trivy secret scanning on every CI push; ami-finalize.sh wipes credentials before snapshot
+
+---
+
 ## Disclaimer
 
 THIS AMI IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
