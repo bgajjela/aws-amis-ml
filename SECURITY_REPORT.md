@@ -220,7 +220,7 @@ prevents loading even with `modprobe`.
 | Severity | High |
 | Component | `algif_aead` Linux kernel module |
 | Impact | Local privilege escalation to root |
-| AMI remediation | commit `564c10b` (2026-05-17) |
+| AMI remediation | Applied 2026-05-17 |
 
 Two-layer fix applied at build time:
 

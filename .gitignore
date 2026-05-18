@@ -1,8 +1,66 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Packer
+packer_cache/
+*.pkrvars.hcl
+!vars.example.pkrvars.hcl
+
+# Trivy
+.trivy/
+trivy-results*.json
+trivy-results*.sarif
+
+# Secrets and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+secrets.json
+credentials.json
+
+# AWS
+.aws/
+*.aws-session
+
+# Nix
+result
+result-*
+.direnv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Logs and scan output
+*.log
+/scan/
+oscap-*.xml
+oscap-*.html
+
+# Temp and build artifacts
 *.bak
 *.tmp.*
-.vscode/
-# Private var file (copy vars.example.pkrvars.hcl → build.pkrvars.hcl with real values)
-build.pkrvars.hcl
-# Packer and trivy caches
-packer_cache/
-.trivy/
+*.tmp
+/tmp/
+scap-security-guide-*/
+ssg.zip
+
+# Claude Design / planning docs (not part of the product)
+claude-design-prompt.md
