@@ -9,27 +9,39 @@
 # All three Python versions run in parallel: ~15-20 min total (was ~45-60 min
 # sequential).
 #
-# Torch CPU index:    https://download.pytorch.org/whl/cpu
-# tensorflow-cpu:     ~600 MB pre-built wheel (vs hours of Nix compilation)
-# torch CPU:          ~200 MB per wheel (vs ~6 GB Nix CUDA closure)
+# x86_64: PyTorch CPU from the WHL index (~200 MB/version, no CUDA overhead).
+# aarch64: PyPI directly — the WHL index has incomplete ARM64 coverage for
+#   torchvision/torchaudio; --index-url would replace PyPI and silently fail.
+#   PyPI hosts first-class aarch64 wheels for all packages since PyTorch 2.1+.
+# tensorflow-cpu: PyPI on both arches (unified package since TF 2.16; the
+#   -cpu suffix is a metapackage alias that works on both x86_64 and aarch64).
 set -euo pipefail
 
 TORCH_INDEX="https://download.pytorch.org/whl/cpu"
+ARCH="$(uname -m)"   # x86_64 or aarch64
 
 # ── Per-version build function (runs in a subshell background job) ────────────
 _build_pro() {
   local label="$1" base_env="$2" pro_env="$3" symlink="$4"
 
-  echo "=== [${label}] ${base_env} -> ${pro_env} ==="
+  echo "=== [${label}] ${base_env} -> ${pro_env} (arch: ${ARCH}) ==="
 
   sudo "${base_env}/bin/python" -m venv --system-site-packages "${pro_env}"
   sudo "${pro_env}/bin/pip" install --upgrade pip --quiet
 
   echo "  [${label}] torch (CPU wheels)..."
-  sudo "${pro_env}/bin/pip" install \
-    torch torchvision torchaudio \
-    --index-url "${TORCH_INDEX}" \
-    --quiet
+  if [ "${ARCH}" = "x86_64" ]; then
+    # WHL index: smaller download, no CUDA wheels pulled in
+    sudo "${pro_env}/bin/pip" install \
+      torch torchvision torchaudio \
+      --index-url "${TORCH_INDEX}" \
+      --quiet
+  else
+    # ARM64: PyPI has first-class aarch64 wheels; WHL index coverage is incomplete
+    sudo "${pro_env}/bin/pip" install \
+      torch torchvision torchaudio \
+      --quiet
+  fi
 
   echo "  [${label}] tensorflow-cpu + ecosystem..."
   sudo "${pro_env}/bin/pip" install \

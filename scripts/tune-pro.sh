@@ -30,7 +30,8 @@ vm.vfs_cache_pressure = 50
 
 # ── Network ───────────────────────────────────────────────────────────────────
 # Saturate ENA at up to 25 Gbps for S3 training data ingestion.
-# c6i.xlarge: 12.5 Gbps; c6i.4xlarge: 25 Gbps. These buffers fit either.
+# x86 (c6i.xlarge / c6i.4xlarge): 12.5–25 Gbps ENA.
+# ARM (c7g.xlarge / c7g.4xlarge): 12.5–25 Gbps ENA. Same settings apply.
 net.core.rmem_max = 134217728
 net.core.wmem_max = 134217728
 net.core.rmem_default = 1048576
