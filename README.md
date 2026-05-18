@@ -1,6 +1,6 @@
 # CPU DS/ML AMI (Ubuntu 22.04) — Hardened + Nix Managed
 
-CIS-hardened Ubuntu 22.04 AMI for CPU-based data science and ML workloads.
+CIS-aligned Ubuntu 22.04 AMI for CPU-based data science and ML workloads.
 Reproducible language environments via Nix. Built for AWS Marketplace.
 Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g family).
 
@@ -18,7 +18,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - XGBoost, LightGBM, MLflow — across all three Python versions
 - ML kernel tuning: BBR TCP, 128 MB socket buffers, THP madvise, nofile=1M, vm.swappiness=1
 
-**Security — CIS Ubuntu 22.04 L1+L2: 114 PASS · 0 FAIL · 1 WARN**
+**Security — CIS Ubuntu 22.04 L1+L2 controls applied: 114 PASS · 0 FAIL · 1 WARN (certification in progress, ref: CSH-23446)**
 - SSH: key-only, no root, chacha20/aes-gcm, login banner
 - UFW: default deny inbound, SSH rate-limited via fail2ban
 - Filesystem: `/tmp` + `/var/tmp` tmpfs (nosuid/nodev/noexec, size=25%/10% RAM); `/dev/shm` hardened
@@ -30,11 +30,11 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 **Architectures**
 - x86_64 — `c6i.xlarge` (Intel, 4 vCPU / 8 GB) · AMI names: `cpu-ds-ml-ubuntu-2204-{base|pro}-<ts>`
 - ARM64/Graviton3 — `c7g.xlarge` (4 vCPU / 8 GB) · AMI names: `cpu-ds-ml-ubuntu-2204-arm64-{base|pro}-<ts>`
-- Both architectures share identical scripts: same CIS hardening, same tuning, same smoke tests
+- Both architectures share identical scripts: same CIS-aligned hardening, same tuning, same smoke tests
 - ARM64 PyTorch installed from PyPI (first-class `linux_aarch64` wheels); x86 from WHL index
 
 **Compliance**
-- CIS Hardened (114 controls), CycloneDX SBOM baked in
+- CIS Ubuntu 22.04 L1+L2 controls applied (114 passing, certification in progress ref: CSH-23446), CycloneDX SBOM baked in
 - AWS Standard Contract for AWS Marketplace
 - ECCN 5D002.c.1, License Exception ENC (export classification baked into each AMI)
 
@@ -215,7 +215,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 ```
 .
 ├── packer.pkr.hcl          Packer template — base + pro builds for x86 and ARM64
-├── harden.sh               CIS L1+L2 hardening (114 controls), service audit
+├── harden.sh               CIS L1+L2 benchmark controls applied (114 passing), service audit
 ├── nix/
 │   └── flake.nix           Nix flake — Python envs + toolchains (nixos-25.05)
 ├── scripts/

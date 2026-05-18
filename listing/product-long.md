@@ -1,6 +1,6 @@
 Why This AMI
 - Ready-to-use CPU data science/ML environment with reproducible Nix builds.
-- Security-first: CIS Ubuntu 22.04 L1+L2 hardened (114 controls), UFW, AppArmor, AIDE, auditd.
+- Security-first: CIS Ubuntu 22.04 L1+L2 benchmark controls applied (114 passing, certification in progress), UFW, AppArmor, AIDE, auditd.
 - Faster onboarding: Python 3.11/3.12/3.13, Julia, R, Go, Rust, Node.js, Java 21 (LTS), Apache Spark.
 - Governed by the AWS Standard Contract for AWS Marketplace.
 
@@ -15,7 +15,7 @@ What's Included
 - On-demand scanner: `sudo ami-scan` runs Trivy CVE scan + OpenSCAP CIS audit
 
 Security & Compliance
-- CIS Ubuntu 22.04 LTS Benchmark Level 1 + Level 2: 114 PASS, 0 FAIL
+- CIS Ubuntu 22.04 LTS Benchmark L1+L2 controls applied: 114 PASS, 0 FAIL (CIS certification in progress, ref: CSH-23446)
 - SSH: key-only, root login disabled, strong crypto (chacha20/aes-gcm), login banner
 - Firewall: UFW default deny inbound; SSH allowed and rate-limited via fail2ban
 - Filesystem: /tmp and /var/tmp as tmpfs (nosuid, nodev, noexec); /dev/shm hardened
