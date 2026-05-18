@@ -4,7 +4,7 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email: bgajjela@gmail.com  
+Email: dimenpoint@gmail.com  
 Subject line: `[SECURITY] CPU DS/ML AMI — <brief description>`
 
 Include:
@@ -43,10 +43,10 @@ Check `/usr/share/BUILD_INFO` on a running instance for the exact build date.
 | **Affected kernels** | 4.14 – 6.19.12 |
 | **Ubuntu 22.04 kernel** | 5.15.x — within affected range |
 | **Impact** | Local privilege escalation to root for any active user session |
-| **Remediated in AMI build** | Commit `564c10b` (2026-05-17) |
+| **Remediated in AMI build** | Applied 2026-05-17 |
 | **Reference** | https://cisecurity.atlassian.net/wiki/spaces/CSKB/pages/5164630160/ |
 
-**What was done in the AMI build (commit `564c10b`):**
+**What was done in the AMI build (applied 2026-05-17):**
 
 1. `algif_aead` blacklisted in `/etc/modprobe.d/cis-blacklist.conf` — module
    cannot load on any instance launched from this AMI. Takes effect immediately
@@ -104,3 +104,35 @@ Every AMI build applies the following before publishing:
 - **EBS encryption** at rest; **IMDSv2** enforced; **SSH** key-only, no root login
 
 For the full control list see `SECURITY_REPORT.md`.
+
+---
+
+## Disclaimer
+
+THIS AMI IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
+
+**Your responsibility.** You are solely responsible for evaluating whether this
+AMI meets your organization's security requirements, validating controls against
+your own compliance obligations, and maintaining the security posture of any
+instance you launch. Hardening controls applied at build time do not substitute
+for ongoing operational security practices.
+
+**Limitation of liability.** To the maximum extent permitted by applicable law,
+Dimenpoint shall not be liable for any direct, indirect, incidental, special,
+consequential, or punitive damages arising from your use of, or inability to use,
+this AMI — including but not limited to data loss, unauthorized access, security
+incidents, compliance failures, or service interruptions — even if advised of
+the possibility of such damages.
+
+**No compliance guarantee.** The presence of CIS benchmark controls (ref:
+CSH-23446, certification in progress) does not constitute a guarantee of
+compliance with any regulatory framework, including SOC 2, HIPAA, PCI-DSS,
+FedRAMP, or ISO 27001. Engage a qualified auditor for formal compliance
+assessments applicable to your use case.
+
+**AWS terms govern.** Your use of this AMI through AWS Marketplace is subject
+to the AWS Customer Agreement and the AWS Standard Contract for AWS Marketplace.
+In the event of any conflict between this document and those agreements, the
+AWS terms control.
