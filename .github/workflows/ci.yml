@@ -6,15 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+permissions: read-all
+
 jobs:
   lint-and-test:
     name: Lint, CIS check, CVE scan
     runs-on: ubuntu-22.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
@@ -45,13 +50,21 @@ jobs:
       - name: CIS compliance check
         run: bash tests/cis-check.sh
 
-      - name: Trivy — CVE + secret + misconfiguration scan
+      - name: Trivy — CVE + secret + misconfiguration scan (SARIF)
         run: |
           trivy fs \
             --scanners vuln,secret,misconfig \
             --severity HIGH,CRITICAL \
             --exit-code 1 \
+            --format sarif \
+            --output trivy-results.sarif \
             .
+
+      - name: Upload Trivy SARIF to code-scanning
+        uses: github/codeql-action/upload-sarif@b0565cb28b456da32509aef995361ffcc63f40b0  # v3.28.15
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
 
       - name: Packer validate
         run: |
@@ -62,31 +75,9 @@ jobs:
             .
 
       - name: Checkov — Packer IaC misconfiguration scan
-        uses: bridgecrewio/checkov-action@v12
+        uses: bridgecrewio/checkov-action@37026823bd2a0a70f8aedd88f8a3e9cb342418af  # v12
         with:
           file: packer.pkr.hcl
           framework: terraform
           soft_fail: false
           quiet: true
-
-  # Optional: build AMIs on tagged releases when AWS credentials are configured.
-  # Uncomment and add AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION
-  # as repository secrets to enable.
-  #
-  # build:
-  #   name: Build AMIs
-  #   needs: lint-and-test
-  #   runs-on: ubuntu-22.04
-  #   if: startsWith(github.ref, 'refs/tags/v')
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Configure AWS credentials
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #         aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-  #     - name: Build base AMI
-  #       run: packer build -var spot_price=auto -only=cpu-ds-ml-base .
-  #     - name: Build pro AMI
-  #       run: packer build -var spot_price=auto -only=cpu-ds-ml-pro .
