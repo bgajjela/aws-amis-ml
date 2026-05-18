@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # smoke-pro.sh — compute-level validation for the pro AMI.
 #
 # Runs after tune-pro.sh. Tests that each framework can actually execute

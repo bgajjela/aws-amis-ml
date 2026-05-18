@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # ami-finalize.sh — MUST be the last Packer provisioner step.
 # Generates the package manifest, installs legal notices, and scrubs build
 # artefacts so each customer instance starts from a clean, anonymous state.

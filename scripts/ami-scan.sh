@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
 # ami-scan — on-demand CVE and CIS compliance scanner.
 #
 # Usage:
