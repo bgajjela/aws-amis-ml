@@ -126,8 +126,7 @@ this AMI — including but not limited to data loss, unauthorized access, securi
 incidents, compliance failures, or service interruptions — even if advised of
 the possibility of such damages.
 
-**No compliance guarantee.** The presence of CIS benchmark controls (ref:
-CSH-23446, certification in progress) does not constitute a guarantee of
+**No compliance guarantee.** The presence of CIS benchmark controls does not constitute a guarantee of
 compliance with any regulatory framework, including SOC 2, HIPAA, PCI-DSS,
 FedRAMP, or ISO 27001. Engage a qualified auditor for formal compliance
 assessments applicable to your use case.

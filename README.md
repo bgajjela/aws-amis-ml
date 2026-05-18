@@ -18,7 +18,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - XGBoost, LightGBM, MLflow — across all three Python versions
 - ML kernel tuning: BBR TCP, 128 MB socket buffers, THP madvise, nofile=1M, vm.swappiness=1
 
-**Security — CIS Ubuntu 22.04 L1+L2 controls applied: 114 PASS · 0 FAIL · 1 WARN (certification in progress, ref: CSH-23446)**
+**Security — CIS Ubuntu 22.04 L1+L2 controls applied: 114 PASS · 0 FAIL · 1 WARN**
 - SSH: key-only, no root, chacha20/aes-gcm, login banner
 - UFW: default deny inbound, SSH rate-limited via fail2ban
 - Filesystem: `/tmp` + `/var/tmp` tmpfs (nosuid/nodev/noexec, size=25%/10% RAM); `/dev/shm` hardened
@@ -34,7 +34,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - ARM64 PyTorch installed from PyPI (first-class `linux_aarch64` wheels); x86 from WHL index
 
 **Compliance**
-- CIS Ubuntu 22.04 L1+L2 controls applied (114 passing, certification in progress ref: CSH-23446), CycloneDX SBOM baked in
+- CIS Ubuntu 22.04 L1+L2 controls applied (114 passing), CycloneDX SBOM baked in
 - AWS Standard Contract for AWS Marketplace
 - ECCN 5D002.c.1, License Exception ENC (export classification baked into each AMI)
 

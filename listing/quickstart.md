@@ -44,6 +44,6 @@ Build info
 Security posture
   SSH hardened: no passwords, no root, chacha20/aes-gcm only
   UFW: default deny inbound, SSH rate-limited (fail2ban)
-  CIS L1+L2: 114 controls applied (certification in progress)
+  CIS L1+L2: 114 controls applied
   IMDSv2 required — prevents SSRF metadata theft
   EBS encrypted at rest (KMS)
