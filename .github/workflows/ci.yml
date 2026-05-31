@@ -40,7 +40,8 @@ jobs:
             scripts/build-pro-envs.sh \
             scripts/tune-pro.sh \
             scripts/smoke-pro.sh \
-            scripts/spark-java.sh
+            scripts/spark-java.sh \
+            scripts/test-ami.sh
 
       - name: CIS compliance check
         run: bash tests/cis-check.sh

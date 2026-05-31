@@ -1,0 +1,529 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Dimenpoint
+#
+# ami-build.yml — full AMI build, test, and tagging pipeline.
+#
+# Triggered manually via workflow_dispatch. Builds up to 4 AMIs (x86 base/pro
+# and ARM64 base/pro), tests each on a live EC2 instance, then tags the AMIs
+# with a release label.
+#
+# Required GitHub secrets:
+#   AWS_ROLE_ARN             ARN of the IAM role to assume via OIDC
+#                            e.g. arn:aws:iam::123456789012:role/github-ami-pipeline
+#                            One-time AWS setup:
+#                              1. Create OIDC provider for token.actions.githubusercontent.com
+#                              2. Create IAM role with trust policy scoped to this repo
+#                              3. Attach EC2 permissions listed below
+#                            See: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+#
+# Optional GitHub secrets:
+#   PACKER_SUBNET_ID         Subnet for Packer build instances (auto-detected
+#                            from the default VPC if not set)
+#
+# Minimum IAM permissions for the CI user:
+#   ec2:DescribeVpcs, ec2:DescribeSubnets, ec2:DescribeInstances,
+#   ec2:DescribeInstanceStatus, ec2:DescribeImages, ec2:DescribeSecurityGroups,
+#   ec2:RunInstances, ec2:TerminateInstances, ec2:StopInstances,
+#   ec2:CreateImage, ec2:ModifyImageAttribute, ec2:DeregisterImage,
+#   ec2:CreateTags, ec2:DeleteTags,
+#   ec2:CreateSecurityGroup, ec2:DeleteSecurityGroup,
+#   ec2:AuthorizeSecurityGroupIngress, ec2:RevokeSecurityGroupIngress,
+#   ec2:CreateKeyPair, ec2:DeleteKeyPair,
+#   ec2:CreateSnapshot, ec2:DeleteSnapshot,
+#   ec2:CreateVolume, ec2:DeleteVolume,
+#   ec2:AttachVolume, ec2:DetachVolume
+
+name: AMI Build & Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target'
+        type: choice
+        default: all
+        options:
+          - all        # x86 base+pro + ARM base+pro
+          - base       # x86 base only
+          - pro        # x86 base → pro
+          - arm-base   # ARM base only
+          - arm-pro    # ARM base → pro
+      region:
+        description: 'AWS region'
+        default: us-east-1
+      version_tag:
+        description: 'Release tag to apply to built AMIs (e.g. v1.0.1)'
+        default: ''
+
+# id-token:write is required for OIDC short-lived credential exchange.
+# Set the AWS_ROLE_ARN secret in repo settings (Settings → Secrets → Actions):
+#   aws iam create-role --role-name github-ami-pipeline \
+#     --assume-role-policy-document file://oidc-trust.json
+# See: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_DEFAULT_REGION: ${{ github.event.inputs.region || 'us-east-1' }}
+  PACKER_LOG: 1
+  PACKER_LOG_PATH: /tmp/packer.log
+
+# ── Validate ────────────────────────────────────────────────────────────────
+jobs:
+  validate:
+    name: Packer validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] \
+            https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q && sudo apt-get install -y packer
+
+      - name: Packer init + validate
+        run: |
+          packer init .
+          packer validate \
+            -var subnet_id=subnet-placeholder \
+            -var security_group_id=sg-placeholder \
+            .
+
+# ── x86 base ────────────────────────────────────────────────────────────────
+  build-x86-base:
+    name: Build x86 base AMI
+    needs: validate
+    if: contains(fromJSON('["all","base","pro"]'), github.event.inputs.target)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    outputs:
+      ami_id: ${{ steps.packer.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] \
+            https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q && sudo apt-get install -y packer
+
+      - name: Resolve subnet
+        id: net
+        run: |
+          SUBNET="${{ secrets.PACKER_SUBNET_ID }}"
+          if [[ -z "$SUBNET" ]]; then
+            SUBNET=$(aws ec2 describe-subnets \
+              --filters Name=defaultForAz,Values=true \
+              --query 'Subnets[0].SubnetId' --output text)
+          fi
+          echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
+
+      - name: Packer build — x86 base
+        id: packer
+        run: |
+          packer init .
+          packer build \
+            -machine-readable \
+            -only=cpu-ds-ml-base \
+            -var "region=${AWS_DEFAULT_REGION}" \
+            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
+            -var "spot_price=auto" \
+            -var "encrypt_ebs=true" \
+            -var "root_volume_size=24" \
+            -var "associate_public_ip=true" \
+            . 2>&1 | tee /tmp/packer-build.log
+
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+            | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          echo "Built AMI: ${AMI_ID}"
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Packer log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: packer-log-x86-base
+          path: /tmp/packer-build.log
+          retention-days: 3
+
+  test-x86-base:
+    name: Test x86 base AMI
+    needs: build-x86-base
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      ami_id: ${{ steps.passthrough.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Run AMI tests — x86 base
+        run: |
+          chmod +x scripts/test-ami.sh
+          scripts/test-ami.sh \
+            "${{ needs.build-x86-base.outputs.ami_id }}" \
+            x86_64 \
+            base
+
+      - name: Pass AMI ID to tag job
+        id: passthrough
+        run: echo "ami_id=${{ needs.build-x86-base.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+
+# ── x86 pro ─────────────────────────────────────────────────────────────────
+  build-x86-pro:
+    name: Build x86 pro AMI
+    needs: test-x86-base
+    if: contains(fromJSON('["all","pro"]'), github.event.inputs.target)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    outputs:
+      ami_id: ${{ steps.packer.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] \
+            https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q && sudo apt-get install -y packer
+
+      - name: Resolve subnet
+        id: net
+        run: |
+          SUBNET="${{ secrets.PACKER_SUBNET_ID }}"
+          if [[ -z "$SUBNET" ]]; then
+            SUBNET=$(aws ec2 describe-subnets \
+              --filters Name=defaultForAz,Values=true \
+              --query 'Subnets[0].SubnetId' --output text)
+          fi
+          echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
+
+      - name: Packer build — x86 pro
+        id: packer
+        run: |
+          packer init .
+          packer build \
+            -machine-readable \
+            -only=cpu-ds-ml-pro \
+            -var "region=${AWS_DEFAULT_REGION}" \
+            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
+            -var "spot_price=auto" \
+            -var "encrypt_ebs=true" \
+            -var "root_volume_size=24" \
+            -var "associate_public_ip=true" \
+            . 2>&1 | tee /tmp/packer-build.log
+
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+            | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          echo "Built AMI: ${AMI_ID}"
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Packer log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: packer-log-x86-pro
+          path: /tmp/packer-build.log
+          retention-days: 3
+
+  test-x86-pro:
+    name: Test x86 pro AMI
+    needs: build-x86-pro
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      ami_id: ${{ steps.passthrough.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Run AMI tests — x86 pro
+        run: |
+          chmod +x scripts/test-ami.sh
+          scripts/test-ami.sh \
+            "${{ needs.build-x86-pro.outputs.ami_id }}" \
+            x86_64 \
+            pro
+
+      - name: Pass AMI ID to tag job
+        id: passthrough
+        run: echo "ami_id=${{ needs.build-x86-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+
+# ── ARM64 base ───────────────────────────────────────────────────────────────
+  build-arm-base:
+    name: Build ARM64 base AMI
+    needs: validate
+    if: contains(fromJSON('["all","arm-base","arm-pro"]'), github.event.inputs.target)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    outputs:
+      ami_id: ${{ steps.packer.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] \
+            https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q && sudo apt-get install -y packer
+
+      - name: Resolve subnet
+        id: net
+        run: |
+          SUBNET="${{ secrets.PACKER_SUBNET_ID }}"
+          if [[ -z "$SUBNET" ]]; then
+            SUBNET=$(aws ec2 describe-subnets \
+              --filters Name=defaultForAz,Values=true \
+              --query 'Subnets[0].SubnetId' --output text)
+          fi
+          echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
+
+      - name: Packer build — ARM64 base
+        id: packer
+        run: |
+          packer init .
+          packer build \
+            -machine-readable \
+            -only=cpu-ds-ml-arm64-base \
+            -var "region=${AWS_DEFAULT_REGION}" \
+            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
+            -var "spot_price=auto" \
+            -var "encrypt_ebs=true" \
+            -var "root_volume_size=24" \
+            -var "associate_public_ip=true" \
+            . 2>&1 | tee /tmp/packer-build.log
+
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+            | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          echo "Built AMI: ${AMI_ID}"
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Packer log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: packer-log-arm-base
+          path: /tmp/packer-build.log
+          retention-days: 3
+
+  test-arm-base:
+    name: Test ARM64 base AMI
+    needs: build-arm-base
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      ami_id: ${{ steps.passthrough.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Run AMI tests — ARM64 base
+        run: |
+          chmod +x scripts/test-ami.sh
+          scripts/test-ami.sh \
+            "${{ needs.build-arm-base.outputs.ami_id }}" \
+            arm64 \
+            base
+
+      - name: Pass AMI ID to tag job
+        id: passthrough
+        run: echo "ami_id=${{ needs.build-arm-base.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+
+# ── ARM64 pro ────────────────────────────────────────────────────────────────
+  build-arm-pro:
+    name: Build ARM64 pro AMI
+    needs: test-arm-base
+    if: contains(fromJSON('["all","arm-pro"]'), github.event.inputs.target)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    outputs:
+      ami_id: ${{ steps.packer.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Install Packer
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] \
+            https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q && sudo apt-get install -y packer
+
+      - name: Resolve subnet
+        id: net
+        run: |
+          SUBNET="${{ secrets.PACKER_SUBNET_ID }}"
+          if [[ -z "$SUBNET" ]]; then
+            SUBNET=$(aws ec2 describe-subnets \
+              --filters Name=defaultForAz,Values=true \
+              --query 'Subnets[0].SubnetId' --output text)
+          fi
+          echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
+
+      - name: Packer build — ARM64 pro
+        id: packer
+        run: |
+          packer init .
+          packer build \
+            -machine-readable \
+            -only=cpu-ds-ml-arm64-pro \
+            -var "region=${AWS_DEFAULT_REGION}" \
+            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
+            -var "spot_price=auto" \
+            -var "encrypt_ebs=true" \
+            -var "root_volume_size=24" \
+            -var "associate_public_ip=true" \
+            . 2>&1 | tee /tmp/packer-build.log
+
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+            | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          echo "Built AMI: ${AMI_ID}"
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Packer log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: packer-log-arm-pro
+          path: /tmp/packer-build.log
+          retention-days: 3
+
+  test-arm-pro:
+    name: Test ARM64 pro AMI
+    needs: build-arm-pro
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      ami_id: ${{ steps.passthrough.outputs.ami_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Run AMI tests — ARM64 pro
+        run: |
+          chmod +x scripts/test-ami.sh
+          scripts/test-ami.sh \
+            "${{ needs.build-arm-pro.outputs.ami_id }}" \
+            arm64 \
+            pro
+
+      - name: Pass AMI ID to tag job
+        id: passthrough
+        run: echo "ami_id=${{ needs.build-arm-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+
+# ── Tag AMIs ─────────────────────────────────────────────────────────────────
+  tag-release:
+    name: Tag AMIs with release version
+    needs: [test-x86-base, test-x86-pro, test-arm-base, test-arm-pro]
+    if: |
+      always() &&
+      github.event.inputs.version_tag != '' &&
+      (needs.test-x86-base.result == 'success' || needs.test-x86-base.result == 'skipped') &&
+      (needs.test-x86-pro.result == 'success' || needs.test-x86-pro.result == 'skipped') &&
+      (needs.test-arm-base.result == 'success' || needs.test-arm-base.result == 'skipped') &&
+      (needs.test-arm-pro.result == 'success' || needs.test-arm-pro.result == 'skipped') &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Tag all built AMIs
+        env:
+          VERSION: ${{ github.event.inputs.version_tag }}
+        run: |
+          REGION="${AWS_DEFAULT_REGION}"
+
+          tag_ami() {
+            local ami_id="$1"
+            local label="$2"
+            [[ -z "$ami_id" || "$ami_id" == "null" ]] && return 0
+            aws ec2 create-tags \
+              --resources "$ami_id" \
+              --tags \
+                "Key=Version,Value=${VERSION}" \
+                "Key=ReleasedAt,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                "Key=Pipeline,Value=ami-build" \
+                "Key=Label,Value=${label}" \
+              --region "$REGION"
+            echo "Tagged ${ami_id} (${label}) with ${VERSION}"
+          }
+
+          tag_ami "${{ needs.test-x86-base.outputs.ami_id }}" "x86-base"
+          tag_ami "${{ needs.test-x86-pro.outputs.ami_id }}"  "x86-pro"
+          tag_ami "${{ needs.test-arm-base.outputs.ami_id }}" "arm-base"
+          tag_ami "${{ needs.test-arm-pro.outputs.ami_id }}"  "arm-pro"

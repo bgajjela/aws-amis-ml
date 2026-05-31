@@ -5,7 +5,7 @@
 #
 # Usage: test-ami.sh <AMI_ID> <arch: x86_64|arm64> <tier: base|pro>
 #
-# Requires: aws CLI configured, jq, ssh
+# Requires: aws CLI configured, jq, ssh, ssh-keyscan
 # Creates a temporary key pair and security group in the default VPC.
 # Always cleans up EC2 resources via trap EXIT — safe to interrupt.
 set -euo pipefail
@@ -21,6 +21,7 @@ KEY_NAME="ami-test-${STAMP}"
 INSTANCE_ID=""
 TMP_SG_ID=""
 KEY_FILE="/tmp/${KEY_NAME}.pem"
+KNOWN_HOSTS_FILE="/tmp/known_hosts_${STAMP}"
 
 # ── Cleanup (always runs on exit) ─────────────────────────────────────────────
 cleanup() {
@@ -37,7 +38,7 @@ cleanup() {
   if [[ -n "$TMP_SG_ID" ]]; then
     aws ec2 delete-security-group --group-id "$TMP_SG_ID" --region "$REGION" 2>/dev/null || true
   fi
-  rm -f "$KEY_FILE"
+  rm -f "$KEY_FILE" "$KNOWN_HOSTS_FILE"
 }
 trap cleanup EXIT
 
@@ -50,25 +51,46 @@ SUBNET_ID=$(aws ec2 describe-subnets \
   --filters "Name=vpc-id,Values=${VPC_ID}" "Name=defaultForAz,Values=true" \
   --query 'Subnets[0].SubnetId' --output text --region "$REGION")
 
-MY_CIDR="$(curl -sf --max-time 5 https://checkip.amazonaws.com)/32"
+# Validate checkip response is a bare IPv4 before using it as a CIDR
+_RAW_IP=$(curl -sf --max-time 5 https://checkip.amazonaws.com)
+if ! [[ "$_RAW_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  echo "ERROR: Unexpected response from checkip.amazonaws.com: '${_RAW_IP}'" >&2
+  exit 1
+fi
+MY_CIDR="${_RAW_IP}/32"
 echo "Runner IP: $MY_CIDR | VPC: $VPC_ID | Subnet: $SUBNET_ID"
 
-# ── Temp security group (SSH from this runner only) ───────────────────────────
+# ── Temp security group (SSH in from runner only; restricted egress) ──────────
 TMP_SG_ID=$(aws ec2 create-security-group \
   --group-name "ami-test-${STAMP}" \
   --description "Ephemeral AMI test SG — auto-deleted after test run" \
   --vpc-id "$VPC_ID" --region "$REGION" \
   --query 'GroupId' --output text)
 
+# Inbound: SSH from this runner only
 aws ec2 authorize-security-group-ingress \
   --group-id "$TMP_SG_ID" --protocol tcp --port 22 --cidr "$MY_CIDR" \
   --region "$REGION" > /dev/null
 
-# ── Temp key pair ──────────────────────────────────────────────────────────────
-aws ec2 create-key-pair \
+# Outbound: revoke default allow-all, then permit only what ami-scan needs
+aws ec2 revoke-security-group-egress \
+  --group-id "$TMP_SG_ID" --region "$REGION" \
+  --ip-permissions '[{"IpProtocol":"-1","IpRanges":[{"CidrIp":"0.0.0.0/0"}]}]' \
+  2>/dev/null || true
+aws ec2 authorize-security-group-egress \
+  --group-id "$TMP_SG_ID" --protocol tcp --port 443 --cidr 0.0.0.0/0 \
+  --region "$REGION" > /dev/null
+aws ec2 authorize-security-group-egress \
+  --group-id "$TMP_SG_ID" --protocol tcp --port 80 --cidr 0.0.0.0/0 \
+  --region "$REGION" > /dev/null
+aws ec2 authorize-security-group-egress \
+  --group-id "$TMP_SG_ID" --protocol udp --port 53 --cidr 0.0.0.0/0 \
+  --region "$REGION" > /dev/null
+
+# ── Temp key pair (created mode 0600 from the start via umask) ────────────────
+(umask 077; aws ec2 create-key-pair \
   --key-name "$KEY_NAME" --region "$REGION" \
-  --query 'KeyMaterial' --output text > "$KEY_FILE"
-chmod 600 "$KEY_FILE"
+  --query 'KeyMaterial' --output text > "$KEY_FILE")
 
 # ── Instance type ─────────────────────────────────────────────────────────────
 if [[ "$ARCH" == "arm64" ]]; then
@@ -100,22 +122,28 @@ PUBLIC_IP=$(aws ec2 describe-instances \
   --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 echo "Instance running at $PUBLIC_IP"
 
-# ── Wait for SSH ──────────────────────────────────────────────────────────────
-SSH_OPTS="-i ${KEY_FILE} -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes"
-echo "Waiting for SSH..."
+# ── Capture host key, then enforce it for all subsequent SSH connections ───────
+# ssh-keyscan collects the real host key while the instance is initialising;
+# StrictHostKeyChecking=yes then ensures every SSH command talks to that exact
+# host — an MITM would present a different key and be rejected.
+echo "Capturing host key..."
 MAX_RETRIES=18
 for i in $(seq 1 $MAX_RETRIES); do
-  # shellcheck disable=SC2086
-  if ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" echo "SSH ready" 2>/dev/null; then
+  if ssh-keyscan -T 5 "$PUBLIC_IP" >> "$KNOWN_HOSTS_FILE" 2>/dev/null \
+    && [[ -s "$KNOWN_HOSTS_FILE" ]]; then
     break
   fi
   if [[ $i -eq $MAX_RETRIES ]]; then
-    echo "ERROR: SSH timed out after $((MAX_RETRIES * 10)) seconds"
+    echo "ERROR: SSH host key not available after $((MAX_RETRIES * 10)) seconds"
     exit 1
   fi
   echo "  retry $i/${MAX_RETRIES}..."
   sleep 10
 done
+
+SSH_OPTS="-i ${KEY_FILE} -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile=${KNOWN_HOSTS_FILE} \
+  -o ConnectTimeout=10 -o BatchMode=yes"
 
 # ── Base runtime verification ─────────────────────────────────────────────────
 echo "=== Base runtime verification ==="
