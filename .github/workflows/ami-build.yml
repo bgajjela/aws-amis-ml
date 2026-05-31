@@ -56,10 +56,55 @@ on:
         default: ''
 
 # id-token:write is required for OIDC short-lived credential exchange.
-# Set the AWS_ROLE_ARN secret in repo settings (Settings → Secrets → Actions):
+#
+# One-time setup — run these commands locally (requires IAM admin access):
+#
+#   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+#
+#   # 1. Create OIDC provider (once per AWS account)
+#   aws iam create-open-id-connect-provider \
+#     --url https://token.actions.githubusercontent.com \
+#     --client-id-list sts.amazonaws.com \
+#     --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+#
+#   # 2. Create IAM role — trust scoped to the 'production' environment only.
+#   #    Using environment scope (not branch scope) means the OIDC token is only
+#   #    issued AFTER the required-reviewer approval gate is passed (Fix 2).
+#   cat > /tmp/oidc-trust.json << 'TRUSTEOF'
+#   {
+#     "Version": "2012-10-17",
+#     "Statement": [{
+#       "Effect": "Allow",
+#       "Principal": {
+#         "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+#       },
+#       "Action": "sts:AssumeRoleWithWebIdentity",
+#       "Condition": {
+#         "StringEquals": {
+#           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+#           "token.actions.githubusercontent.com:sub": "repo:bgajjela/aws-amis-ml:environment:production"
+#         }
+#       }
+#     }]
+#   }
+#   TRUSTEOF
+#   sed -i "s/ACCOUNT_ID/${ACCOUNT_ID}/g" /tmp/oidc-trust.json
 #   aws iam create-role --role-name github-ami-pipeline \
-#     --assume-role-policy-document file://oidc-trust.json
-# See: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+#     --assume-role-policy-document file:///tmp/oidc-trust.json
+#
+#   # 3. Attach EC2 permissions (policy listed in header above)
+#   aws iam put-role-policy --role-name github-ami-pipeline \
+#     --policy-name ami-pipeline-ec2 --policy-document file:///tmp/ec2-policy.json
+#
+#   # 4. Add role ARN to GitHub secrets, remove old static keys
+#   gh secret set AWS_ROLE_ARN \
+#     --body "arn:aws:iam::${ACCOUNT_ID}:role/github-ami-pipeline"
+#   gh secret delete AWS_ACCESS_KEY_ID
+#   gh secret delete AWS_SECRET_ACCESS_KEY
+#
+#   # 5. Create 'production' environment in GitHub with required reviewer:
+#   #    Repo → Settings → Environments → New environment → "production"
+#   #    → Required reviewers → add yourself → Save
 permissions:
   contents: read
   id-token: write
@@ -100,6 +145,7 @@ jobs:
   build-x86-base:
     name: Build x86 base AMI
     needs: validate
+    environment: production
     if: contains(fromJSON('["all","base","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 75
@@ -114,6 +160,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Install Packer
         run: |
@@ -166,8 +213,9 @@ jobs:
   test-x86-base:
     name: Test x86 base AMI
     needs: build-x86-base
+    environment: production
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       ami_id: ${{ steps.passthrough.outputs.ami_id }}
     steps:
@@ -179,6 +227,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Run AMI tests — x86 base
         run: |
@@ -196,6 +245,7 @@ jobs:
   build-x86-pro:
     name: Build x86 pro AMI
     needs: test-x86-base
+    environment: production
     if: contains(fromJSON('["all","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 75
@@ -210,6 +260,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Install Packer
         run: |
@@ -262,8 +313,9 @@ jobs:
   test-x86-pro:
     name: Test x86 pro AMI
     needs: build-x86-pro
+    environment: production
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       ami_id: ${{ steps.passthrough.outputs.ami_id }}
     steps:
@@ -275,6 +327,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Run AMI tests — x86 pro
         run: |
@@ -292,6 +345,7 @@ jobs:
   build-arm-base:
     name: Build ARM64 base AMI
     needs: validate
+    environment: production
     if: contains(fromJSON('["all","arm-base","arm-pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 90
@@ -306,6 +360,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Install Packer
         run: |
@@ -358,8 +413,9 @@ jobs:
   test-arm-base:
     name: Test ARM64 base AMI
     needs: build-arm-base
+    environment: production
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       ami_id: ${{ steps.passthrough.outputs.ami_id }}
     steps:
@@ -371,6 +427,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Run AMI tests — ARM64 base
         run: |
@@ -388,6 +445,7 @@ jobs:
   build-arm-pro:
     name: Build ARM64 pro AMI
     needs: test-arm-base
+    environment: production
     if: contains(fromJSON('["all","arm-pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 90
@@ -402,6 +460,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Install Packer
         run: |
@@ -454,8 +513,9 @@ jobs:
   test-arm-pro:
     name: Test ARM64 pro AMI
     needs: build-arm-pro
+    environment: production
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     outputs:
       ami_id: ${{ steps.passthrough.outputs.ami_id }}
     steps:
@@ -467,6 +527,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Run AMI tests — ARM64 pro
         run: |
@@ -484,6 +545,7 @@ jobs:
   tag-release:
     name: Tag AMIs with release version
     needs: [test-x86-base, test-x86-pro, test-arm-base, test-arm-pro]
+    environment: production
     if: |
       always() &&
       github.event.inputs.version_tag != '' &&
@@ -501,6 +563,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
 
       - name: Tag all built AMIs
         env:
@@ -527,3 +590,163 @@ jobs:
           tag_ami "${{ needs.test-x86-pro.outputs.ami_id }}"  "x86-pro"
           tag_ami "${{ needs.test-arm-base.outputs.ami_id }}" "arm-base"
           tag_ami "${{ needs.test-arm-pro.outputs.ami_id }}"  "arm-pro"
+
+      - name: Retire old AMIs (keep latest 1 of each)
+        run: |
+          REGION="${AWS_DEFAULT_REGION}"
+
+          # Keeps only the latest AMI for each name pattern and deregisters
+          # everything older. Rebuild from scratch if a rollback is ever needed.
+          retire_old_amis() {
+            local name_filter="$1"
+
+            OLD_AMIS=$(aws ec2 describe-images \
+              --owners self \
+              --filters "Name=name,Values=${name_filter}" \
+              --query "reverse(sort_by(Images, &CreationDate))[1:].ImageId" \
+              --output text --region "$REGION")
+
+            if [[ -z "$OLD_AMIS" || "$OLD_AMIS" == "None" ]]; then
+              echo "Nothing to retire for ${name_filter}."
+              return 0
+            fi
+
+            for AMI_ID in $OLD_AMIS; do
+              SNAPS=$(aws ec2 describe-images --image-ids "$AMI_ID" \
+                --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
+                --output text --region "$REGION")
+              aws ec2 deregister-image --image-id "$AMI_ID" --region "$REGION"
+              echo "Retired: $AMI_ID (${name_filter})"
+              for SNAP in $SNAPS; do
+                aws ec2 delete-snapshot --snapshot-id "$SNAP" --region "$REGION" \
+                  && echo "  Deleted snapshot: $SNAP"
+              done
+            done
+          }
+
+          retire_old_amis "cpu-ds-ml-ubuntu-2204-base-*"
+          retire_old_amis "cpu-ds-ml-ubuntu-2204-pro-*"
+          retire_old_amis "cpu-ds-ml-ubuntu-2204-arm64-base-*"
+          retire_old_amis "cpu-ds-ml-ubuntu-2204-arm64-pro-*"
+
+# ── Safety-net cleanup ───────────────────────────────────────────────────────
+# Runs unconditionally after every pipeline execution — success, failure, or
+# cancellation. Terminates any EC2 instances tagged Purpose=ami-ci-test that
+# are still running, guarding against the case where the bash trap in
+# test-ami.sh was skipped due to a SIGKILL from a job timeout.
+  cleanup-orphans:
+    name: Terminate orphaned test instances
+    needs: [test-x86-base, test-x86-pro, test-arm-base, test-arm-pro]
+    if: always()
+    environment: production
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 7200
+
+      - name: Terminate orphaned test instances
+        run: |
+          REGION="${AWS_DEFAULT_REGION}"
+          INSTANCE_IDS=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Purpose,Values=ami-ci-test" \
+              "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[].Instances[].InstanceId' \
+            --output text --region "$REGION")
+
+          if [[ -z "$INSTANCE_IDS" || "$INSTANCE_IDS" == "None" ]]; then
+            echo "No orphaned test instances."
+          else
+            echo "Terminating: $INSTANCE_IDS"
+            # shellcheck disable=SC2086
+            aws ec2 terminate-instances --instance-ids $INSTANCE_IDS \
+              --region "$REGION" \
+              --query 'TerminatingInstances[].{ID:InstanceId,State:CurrentState.Name}' \
+              --output table
+          fi
+
+      - name: Delete orphaned key pairs
+        run: |
+          REGION="${AWS_DEFAULT_REGION}"
+          KEY_NAMES=$(aws ec2 describe-key-pairs \
+            --filters "Name=key-name,Values=ami-test-*" \
+            --query 'KeyPairs[].KeyName' --output text --region "$REGION")
+
+          if [[ -z "$KEY_NAMES" || "$KEY_NAMES" == "None" ]]; then
+            echo "No orphaned key pairs."
+          else
+            for KN in $KEY_NAMES; do
+              aws ec2 delete-key-pair --key-name "$KN" --region "$REGION"
+              echo "Deleted key pair: $KN"
+            done
+          fi
+
+      - name: Delete orphaned security groups
+        run: |
+          REGION="${AWS_DEFAULT_REGION}"
+          SG_IDS=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=ami-test-*" \
+            --query 'SecurityGroups[].GroupId' --output text --region "$REGION")
+
+          if [[ -z "$SG_IDS" || "$SG_IDS" == "None" ]]; then
+            echo "No orphaned security groups."
+          else
+            for SG in $SG_IDS; do
+              # Skip if still attached to an instance (instance termination may be in-flight)
+              IN_USE=$(aws ec2 describe-instances \
+                --filters "Name=instance.group-id,Values=${SG}" \
+                          "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+                --query 'Reservations[].Instances[].InstanceId' \
+                --output text --region "$REGION")
+              if [[ -n "$IN_USE" && "$IN_USE" != "None" ]]; then
+                echo "Skipping $SG — still attached to $IN_USE"
+              else
+                aws ec2 delete-security-group --group-id "$SG" --region "$REGION" \
+                  2>/dev/null && echo "Deleted SG: $SG" || echo "Could not delete $SG (may need retry)"
+              fi
+            done
+          fi
+
+      - name: Delete orphaned EBS snapshots from failed Packer builds
+        run: |
+          REGION="${AWS_DEFAULT_REGION}"
+
+          # Snapshots created by Packer have "Created by CreateImage" or
+          # "Copied for SourceAMI" in their description. Orphaned ones exist
+          # when a Packer build crashed after snapshotting but before registering
+          # the AMI — so the snapshot has no associated registered AMI.
+
+          # All snapshot IDs currently backing a registered AMI
+          REGISTERED=$(aws ec2 describe-images \
+            --owners self \
+            --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
+            --output text --region "$REGION")
+
+          # All self-owned snapshots with Packer-style descriptions
+          PACKER_SNAPS=$(aws ec2 describe-snapshots \
+            --owner-ids self \
+            --filters "Name=description,Values=*Packer*,*CreateImage*" \
+            --query 'Snapshots[?StartTime<=`'"$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"'`].SnapshotId' \
+            --output text --region "$REGION")
+
+          if [[ -z "$PACKER_SNAPS" || "$PACKER_SNAPS" == "None" ]]; then
+            echo "No candidate orphaned snapshots."
+            exit 0
+          fi
+
+          DELETED=0
+          for SNAP in $PACKER_SNAPS; do
+            if echo "$REGISTERED" | grep -qw "$SNAP"; then
+              echo "Skipping $SNAP — backing a registered AMI"
+            else
+              aws ec2 delete-snapshot --snapshot-id "$SNAP" --region "$REGION" \
+                && echo "Deleted orphaned snapshot: $SNAP" && DELETED=$((DELETED+1)) \
+                || echo "Could not delete $SNAP (may be in use)"
+            fi
+          done
+          echo "Deleted $DELETED orphaned snapshot(s)."
