@@ -287,12 +287,15 @@ jobs:
       - name: Validate nix/flake.nix doesn't reference unstable
         run: |
           echo "Checking for stable Nixpkgs channel..."
-          if grep -q "nixpkgs-unstable\|channel.*unstable" nix/flake.nix; then
+          if grep -E "^\s*(nixpkgs-unstable|.*channel.*unstable)" nix/flake.nix; then
             echo "ERROR: Found unstable Nix channel (use stable only)"
             exit 1
           fi
           if grep -q "nixos-25\|nixos-24" nix/flake.nix; then
-            echo "✓ Using stable Nixpkgs channel"
+            echo "✓ Using stable Nixpkgs channel (nixos-25.05 pinned)"
+          else
+            echo "ERROR: flake.nix must pin nixos-24 or nixos-25"
+            exit 1
           fi
 
       - name: 'Pre-build #1: Docker test of provisioning scripts'
