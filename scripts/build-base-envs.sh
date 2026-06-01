@@ -23,7 +23,7 @@ _nix_bg() {
   # Redirect inside the sudo command so root writes the log file under /tmp.
   sudo bash -lc \
     "source /etc/profile.d/nix.sh && \
-     nix build --extra-experimental-features nix-command,flakes --max-jobs auto --cores 0 -o ${out} ${FLAKE}#${attr} \
+     nix build --extra-experimental-features nix-command --extra-experimental-features flakes --max-jobs auto --cores 0 -o ${out} ${FLAKE}#${attr} \
      >\"${log}\" 2>&1" &
 }
 
