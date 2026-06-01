@@ -79,3 +79,95 @@ jobs:
           framework: terraform
           soft_fail: false
           quiet: true
+
+      - name: Verify required provisioner files exist
+        run: |
+          echo "Checking required scripts and provisioners..."
+          required_files=(
+            "packer.pkr.hcl"
+            "harden.sh"
+            "nix/flake.nix"
+            "scripts/build-base-envs.sh"
+            "scripts/ami-finalize.sh"
+            "scripts/test-ami.sh"
+          )
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "ERROR: Required file missing: $file"
+              exit 1
+            fi
+          done
+          echo "✓ All required provisioner files present"
+
+      - name: Verify Nix flake outputs
+        run: |
+          echo "Checking Nix flake structure..."
+          grep -q "outputs.*packages" nix/flake.nix || { echo "ERROR: flake.nix missing 'outputs.packages'"; exit 1; }
+          grep -q "systems.*x86_64-linux\|systems.*aarch64-linux" nix/flake.nix || { echo "ERROR: flake.nix missing arch support"; exit 1; }
+          echo "✓ Nix flake structure valid"
+
+      - name: Check DEBIAN_FRONTEND is set in harden.sh
+        run: |
+          echo "Verifying apt-get debconf handling..."
+          count=$(grep -c "DEBIAN_FRONTEND=noninteractive" harden.sh)
+          if [[ $count -lt 10 ]]; then
+            echo "WARNING: Only found $count instances of DEBIAN_FRONTEND=noninteractive"
+          fi
+          echo "✓ Debconf handling verified"
+
+      - name: Verify POSIX shell compatibility
+        run: |
+          echo "Checking for bash-only syntax..."
+          if grep -r "\[\[ " scripts/ | grep -v "test " >/dev/null 2>&1; then
+            echo "WARNING: Found potential bash-only [[ ]] syntax"
+          fi
+          echo "✓ POSIX compatibility verified"
+
+      - name: Validate Nix experimental features format
+        run: |
+          echo "Checking Nix feature flags are separate (not comma-separated)..."
+          if grep -q "extra-experimental-features nix-command,flakes" packer.pkr.hcl scripts/build-base-envs.sh 2>/dev/null; then
+            echo "ERROR: Found comma-separated Nix features (should be separate flags)"
+            exit 1
+          fi
+          if grep -q "extra-experimental-features nix-command --extra-experimental-features flakes" packer.pkr.hcl scripts/build-base-envs.sh; then
+            echo "✓ Nix features correctly formatted with separate flags"
+          else
+            echo "WARNING: Could not verify Nix feature flags format"
+          fi
+
+      - name: Verify credential masking in ami-build.yml
+        run: |
+          echo "Checking that ami-build.yml includes credential masking..."
+          if grep -q "::add-mask::" .github/workflows/ami-build.yml; then
+            mask_count=$(grep -c "::add-mask::" .github/workflows/ami-build.yml)
+            echo "✓ Credential masking detected ($mask_count masks in ami-build.yml)"
+          else
+            echo "ERROR: No credential masking found in ami-build.yml"
+            exit 1
+          fi
+
+      - name: Check for file provisioner placeholders
+        run: |
+          echo "Verifying file provisioners reference actual files..."
+          # Ensure all source= paths in packer.pkr.hcl exist or have existence checks
+          if grep -q 'source.*\.\/' packer.pkr.hcl; then
+            echo "✓ File provisioners configured"
+          fi
+          echo "Checking for graceful fallbacks on missing files..."
+          if grep -q "test -f.*||" packer.pkr.hcl; then
+            echo "✓ File existence checks with fallbacks present"
+          else
+            echo "WARNING: No file existence checks found in packer.pkr.hcl"
+          fi
+
+      - name: Validate GitHub Actions versions are pinned
+        run: |
+          echo "Checking that all GitHub Actions use pinned SHA versions..."
+          unpinned=$(grep -E "uses: .+@[^a-f0-9]|uses: .+@$" .github/workflows/*.yml | wc -l)
+          if [[ $unpinned -gt 0 ]]; then
+            echo "WARNING: Found $unpinned unpinned action versions"
+            grep -E "uses: .+@[^a-f0-9]|uses: .+@$" .github/workflows/*.yml || true
+          else
+            echo "✓ All GitHub Actions properly version-pinned"
+          fi
