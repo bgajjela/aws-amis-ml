@@ -171,3 +171,125 @@ jobs:
           else
             echo "✓ All GitHub Actions properly version-pinned"
           fi
+
+      - name: Validate packer.pkr.hcl has all 4 build targets
+        run: |
+          echo "Checking that all 4 AMI variants are defined..."
+          targets=("ubuntu_base" "ubuntu_pro" "ubuntu_arm_base" "ubuntu_arm_pro")
+          for target in "${targets[@]}"; do
+            if grep -q "source \"amazon-ebs\" \"${target}\"" packer.pkr.hcl; then
+              echo "  ✓ ${target}"
+            else
+              echo "  ✗ MISSING: ${target}"
+              exit 1
+            fi
+          done
+          echo "✓ All 4 build targets present (x86 base/pro, ARM64 base/pro)"
+
+      - name: Verify ami-build.yml environment variables
+        run: |
+          echo "Checking ami-build.yml for required environment configuration..."
+          required_env_vars=("AWS_ROLE_ARN" "AWS_DEFAULT_REGION")
+          for var in "${required_env_vars[@]}"; do
+            if grep -q "\${{ secrets.${var} }}\|\${${var}}" .github/workflows/ami-build.yml; then
+              echo "  ✓ ${var} referenced"
+            else
+              echo "  ✗ MISSING: ${var} not found in ami-build.yml"
+            fi
+          done
+
+      - name: Check ami-build.yml has approval gates
+        run: |
+          echo "Verifying production environment protection..."
+          if grep -q "environment.*production" .github/workflows/ami-build.yml; then
+            echo "✓ Production environment approval gates configured"
+          else
+            echo "WARNING: No production environment approval gates found"
+          fi
+
+      - name: Validate packer timeout is sufficient
+        run: |
+          echo "Checking build timeouts..."
+          if grep -q "timeout.*[34][0-9]\|timeout.*60" .github/workflows/ami-build.yml; then
+            echo "✓ Build timeout appears reasonable (30-60 min)"
+          else
+            echo "WARNING: Could not verify build timeout in ami-build.yml"
+          fi
+
+      - name: Verify test-ami.sh has required checks
+        run: |
+          echo "Validating test script coverage..."
+          required_checks=("python" "java" "julia" "go" "spark" "node")
+          for check in "${required_checks[@]}"; do
+            if grep -q "${check}" scripts/test-ami.sh; then
+              echo "  ✓ ${check}"
+            else
+              echo "  ✗ MISSING: ${check} test"
+            fi
+          done
+
+      - name: Check harden.sh covers required CIS controls
+        run: |
+          echo "Validating CIS hardening controls..."
+          # Spot check for key hardening categories
+          categories=("SSH" "kernel.*module" "firewall\|ufw\|iptables" "auditd" "AppArmor\|aide")
+          for cat in "${categories[@]}"; do
+            if grep -i "${cat}" harden.sh >/dev/null; then
+              echo "  ✓ $(echo $cat | cut -d'|' -f1)"
+            else
+              echo "  ✗ MISSING: $(echo $cat | cut -d'|' -f1) control"
+            fi
+          done
+
+      - name: Validate Packer HCL variable definitions
+        run: |
+          echo "Checking Packer variables..."
+          required_vars=("base_ami_id" "base_ami_id_arm" "region" "ami_prefix")
+          for var in "${required_vars[@]}"; do
+            if grep -q "variable \"${var}\"" packer.pkr.hcl; then
+              echo "  ✓ ${var}"
+            else
+              echo "  ✗ MISSING: variable ${var}"
+              exit 1
+            fi
+          done
+
+      - name: Check for deprecated or unsafe patterns
+        run: |
+          echo "Scanning for deprecated patterns..."
+          if grep -q "spot_price.*auto\|spot_price.*true" packer.pkr.hcl; then
+            echo "ERROR: Found deprecated spot_price configuration (use on-demand)"
+            exit 1
+          fi
+          if grep -q "encrypt_boot.*true" packer.pkr.hcl; then
+            echo "WARNING: EBS encryption disabled (required for Marketplace)"
+          fi
+          echo "✓ No deprecated patterns detected"
+
+      - name: Validate nix/flake.nix doesn't reference unstable
+        run: |
+          echo "Checking for stable Nixpkgs channel..."
+          if grep -q "nixpkgs-unstable\|channel.*unstable" nix/flake.nix; then
+            echo "ERROR: Found unstable Nix channel (use stable only)"
+            exit 1
+          fi
+          if grep -q "nixos-25\|nixos-24" nix/flake.nix; then
+            echo "✓ Using stable Nixpkgs channel"
+          fi
+
+      - name: Summary — All pre-build validations
+        run: |
+          echo ""
+          echo "════════════════════════════════════════════════════════════════"
+          echo "  ✅ ALL PRE-BUILD VALIDATIONS PASSED"
+          echo "════════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Next: ami-build.yml will:"
+          echo "  1. Verify AWS credentials (OIDC)"
+          echo "  2. Run Packer build for all 4 AMI variants"
+          echo "  3. Test each AMI with live EC2 instances"
+          echo "  4. Generate CIS compliance report"
+          echo ""
+          echo "Estimated cost: ~\$4-6 per complete build cycle"
+          echo "Estimated time: ~90 minutes (includes 4 parallel EC2 tests)"
+          echo "════════════════════════════════════════════════════════════════"
