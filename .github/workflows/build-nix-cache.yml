@@ -95,11 +95,11 @@ jobs:
           echo "════════════════════════════════════════════════════════════════"
           echo ""
           echo "Cache uploaded to: https://cpu-ds-ml.cachix.org"
-          echo "Next: Triggering ami-build.yml to use the cache..."
+          echo "AMI trigger step is currently disabled for this workflow."
           echo "════════════════════════════════════════════════════════════════"
 
       - name: Trigger AMI Build & Test workflow
-        if: success() && github.ref == 'refs/heads/main'
+        if: false
         run: |
           echo "Triggering ami-build.yml..."
           gh workflow run ami-build.yml \

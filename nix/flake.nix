@@ -18,16 +18,20 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [(final: prev: {
-              # Disable flaky scientific-package tests in the interpreter package set
+              # Disable flaky package test suites in the interpreter package set
               # used by python.withPackages. Astropy 7.0.1 currently fails IERS tests
-              # on Python 3.12 with the nixos-25.05 stack; pytest-doctestplus also
-              # has known NumPy compatibility issues.
+              # on the nixos-25.05 stack; pytest-doctestplus also has known NumPy
+              # compatibility issues. jupyter-server has an intermittently failing
+              # kernel-culling websocket test in CI runners.
               python311 = prev.python311.override {
                 packageOverrides = pyfinal: pyprev: {
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                   astropy = pyprev.astropy.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  jupyter-server = pyprev.jupyter-server.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                 };
@@ -40,6 +44,9 @@
                   astropy = pyprev.astropy.overridePythonAttrs (old: {
                     doCheck = false;
                   });
+                  jupyter-server = pyprev.jupyter-server.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
               python313 = prev.python313.override {
@@ -48,6 +55,9 @@
                     doCheck = false;
                   });
                   astropy = pyprev.astropy.overridePythonAttrs (old: { doCheck = false; });
+                  jupyter-server = pyprev.jupyter-server.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
             })];
