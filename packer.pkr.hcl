@@ -213,13 +213,9 @@ build {
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
-      # software-properties-common needed for add-apt-repository (OpenSCAP PPA)
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils software-properties-common",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      # openscap-scanner and scap-security-guide are not in Ubuntu 22.04 standard repos — use OpenSCAP PPA
-      "sudo add-apt-repository -y ppa:openscap/openscap",
-      "sudo apt-get update",
-      "sudo apt-get -y install openscap-scanner libopenscap8 scap-security-guide",
+      # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
       "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb",
       "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
@@ -427,11 +423,9 @@ build {
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils software-properties-common",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      "sudo add-apt-repository -y ppa:openscap/openscap",
-      "sudo apt-get update",
-      "sudo apt-get -y install openscap-scanner libopenscap8 scap-security-guide",
+      # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_arm64/amazon-ssm-agent.deb",
       "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
