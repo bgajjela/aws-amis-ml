@@ -46,12 +46,14 @@ jobs:
 
       - name: Create tarball
         run: |
-          mkdir -p /tmp/openscap-dist/usr/local
-          cp -r /usr/local/bin /tmp/openscap-dist/usr/local/
-          cp -r /usr/local/lib /tmp/openscap-dist/usr/local/
-          cp -r /usr/local/share /tmp/openscap-dist/usr/local/
-          cd /tmp/openscap-dist
-          tar czf openscap-ubuntu2204-x86_64.tar.gz usr/
+          cd /usr/local
+          # Strip binaries to reduce size
+          strip -g bin/oscap bin/oscap-docker bin/oscap-chroot bin/oscap-ssh 2>/dev/null || true
+          # Tar only bin and essential lib files (exclude docs, examples, test files)
+          tar czf /tmp/openscap-ubuntu2204-x86_64.tar.gz \
+            --exclude='*.a' --exclude='*.la' --exclude='pkgconfig' \
+            --exclude='cmake' --exclude='doc' --exclude='examples' \
+            bin/ lib/
 
       - name: Create release
         env:
@@ -59,7 +61,7 @@ jobs:
         run: |
           TAG="openscap-$(date +%Y%m%d-%H%M%S)"
           gh release create "$TAG" \
-            /tmp/openscap-dist/openscap-ubuntu2204-x86_64.tar.gz \
+            /tmp/openscap-ubuntu2204-x86_64.tar.gz \
             --title "OpenSCAP Build for Ubuntu 22.04" \
             --notes "Pre-built OpenSCAP binary for x86_64. Extract to / on target system." \
             --repo "${{ github.repository }}"
