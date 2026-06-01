@@ -1,0 +1,111 @@
+name: Build & Cache Nix Environments
+
+on:
+  push:
+    paths:
+      - 'nix/flake.nix'
+      - 'nix/flake.lock'
+      - '.github/workflows/build-nix-cache.yml'
+  schedule:
+    # Weekly rebuild: Sunday 2am UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-nix-cache-x86:
+    name: Build Nix cache (x86_64)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Mask sensitive values
+        run: |
+          echo "::add-mask::${{ github.repository }}"
+          echo "::add-mask::${{ github.workspace }}"
+
+      - name: Install Nix (x86_64)
+        uses: cachix/install-nix-action@f2513b6fd12294df11a89faaae5ea9827dbc32c91  # v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Cachix (binary cache)
+        uses: cachix/cachix-action@v15
+        with:
+          name: cpu-ds-ml
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        if: secrets.CACHIX_AUTH_TOKEN != ''
+
+      - name: Build Python 3.11 base environment
+        run: |
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
+            --max-jobs auto --cores 0 \
+            ./nix#py-base --print-build-logs 2>&1 | tee /tmp/py-base.log
+
+      - name: Build Python 3.12 base environment
+        run: |
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
+            --max-jobs auto --cores 0 \
+            ./nix#py-base-py312 --print-build-logs 2>&1 | tee /tmp/py-base-py312.log
+
+      - name: Build Python 3.13 base environment
+        run: |
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
+            --max-jobs auto --cores 0 \
+            ./nix#py-base-py313 --print-build-logs 2>&1 | tee /tmp/py-base-py313.log
+
+      - name: Build language toolchains (parallel)
+        run: |
+          nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
+            --max-jobs auto --cores 0 \
+            ./nix#python313 ./nix#julia ./nix#R ./nix#go ./nix#java ./nix#spark \
+            ./nix#rustc ./nix#cargo ./nix#nodejs --print-build-logs 2>&1 | tee /tmp/langs.log
+
+      - name: Push to Cachix
+        if: always() && secrets.CACHIX_AUTH_TOKEN != ''
+        run: |
+          echo "To push to Cachix, run:"
+          echo "  nix flake show"
+          echo "  cachix push cpu-ds-ml ./result"
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@5d5d22a31266ced594601265cf50a7ae737f764e  # v4.11.3
+        with:
+          name: nix-build-logs-x86
+          path: /tmp/*.log
+          retention-days: 3
+
+      - name: Notify on completion
+        if: always()
+        run: |
+          echo ""
+          echo "════════════════════════════════════════════════════════════════"
+          echo "✅ Nix cache build complete (x86_64)"
+          echo "════════════════════════════════════════════════════════════════"
+          echo ""
+          echo "Cache uploaded to: https://cpu-ds-ml.cachix.org"
+          echo "Next: Triggering ami-build.yml to use the cache..."
+          echo "════════════════════════════════════════════════════════════════"
+
+      - name: Trigger AMI Build & Test workflow
+        if: success()
+        run: |
+          echo "Triggering ami-build.yml..."
+          gh workflow run ami-build.yml \
+            --field target=base \
+            --field region=us-east-1 \
+            --ref ${{ github.ref }}
+          echo ""
+          echo "✅ AMI build triggered!"
+          echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/ami-build.yml"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

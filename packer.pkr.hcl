@@ -300,6 +300,8 @@ build {
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
+      # Configure Cachix binary cache to speed up Nix builds
+      "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
       "sudo chmod +x /tmp/build-base-envs.sh",
       "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
@@ -502,6 +504,8 @@ build {
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
+      # Configure Cachix binary cache to speed up Nix builds
+      "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
       "sudo chmod +x /tmp/build-base-envs.sh",
       "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",

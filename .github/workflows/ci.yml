@@ -114,9 +114,11 @@ jobs:
       - name: Verify Nix flake outputs
         run: |
           echo "Checking Nix flake structure..."
-          grep -q "outputs.*packages" nix/flake.nix || { echo "ERROR: flake.nix missing 'outputs.packages'"; exit 1; }
-          grep -q "systems.*x86_64-linux\|systems.*aarch64-linux" nix/flake.nix || { echo "ERROR: flake.nix missing arch support"; exit 1; }
-          echo "✓ Nix flake structure valid"
+          grep -q "outputs.*=" nix/flake.nix || { echo "ERROR: flake.nix missing 'outputs' definition"; exit 1; }
+          grep -q "packages.*=" nix/flake.nix || { echo "ERROR: flake.nix missing 'packages' output"; exit 1; }
+          grep -q "x86_64-linux" nix/flake.nix || { echo "ERROR: flake.nix missing x86_64-linux support"; exit 1; }
+          grep -q "aarch64-linux" nix/flake.nix || { echo "ERROR: flake.nix missing aarch64-linux support"; exit 1; }
+          echo "✓ Nix flake structure valid (x86_64 + aarch64)"
 
       - name: Check DEBIAN_FRONTEND is set in harden.sh
         run: |
@@ -298,12 +300,30 @@ jobs:
           echo "  ✅ ALL PRE-BUILD VALIDATIONS PASSED"
           echo "════════════════════════════════════════════════════════════════"
           echo ""
-          echo "Next: ami-build.yml will:"
+          echo "Next: Triggering ami-build.yml for automatic build & test..."
+          echo ""
+          echo "Build will:"
           echo "  1. Verify AWS credentials (OIDC)"
           echo "  2. Run Packer build for all 4 AMI variants"
           echo "  3. Test each AMI with live EC2 instances"
           echo "  4. Generate CIS compliance report"
           echo ""
-          echo "Estimated cost: ~\$4-6 per complete build cycle"
-          echo "Estimated time: ~90 minutes (includes 4 parallel EC2 tests)"
+          echo "Estimated cost: ~\$4-6 per build cycle"
+          echo "Estimated time: ~90 minutes"
           echo "════════════════════════════════════════════════════════════════"
+
+      - name: Trigger Nix Cache Pre-build workflow
+        run: |
+          echo "Triggering build-nix-cache.yml..."
+          gh workflow run build-nix-cache.yml \
+            --ref ${{ github.ref }}
+          echo ""
+          echo "✅ Nix cache pre-build triggered!"
+          echo "This will:"
+          echo "  1. Build all Nix packages (45-60 min)"
+          echo "  2. Upload to Cachix binary cache"
+          echo "  3. Automatically trigger ami-build.yml"
+          echo ""
+          echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/build-nix-cache.yml"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

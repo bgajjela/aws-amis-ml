@@ -1338,3 +1338,16 @@ jobs:
             fi
           done
           echo "Deleted $DELETED orphaned snapshot(s)."
+
+      - name: Trigger OpenSCAP compliance report
+        if: success()
+        run: |
+          echo "✅ All AMI builds and tests successful!"
+          echo ""
+          echo "Triggering build-openscap-x86.yml for compliance reporting..."
+          gh workflow run build-openscap-x86.yml \
+            --ref ${{ github.ref }}
+          echo ""
+          echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/build-openscap-x86.yml"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
