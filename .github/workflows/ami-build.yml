@@ -148,7 +148,7 @@ jobs:
     name: Build x86 base AMI
     needs: validate
     environment: production
-    if: contains(fromJSON('["all","base","pro"]'), github.event.inputs.target)
+    if: success() && contains(fromJSON('["all","base","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 75
     outputs:
@@ -370,7 +370,7 @@ jobs:
     name: Build x86 pro AMI
     needs: test-x86-base
     environment: production
-    if: contains(fromJSON('["all","pro"]'), github.event.inputs.target)
+    if: success() && contains(fromJSON('["all","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 75
     outputs:
