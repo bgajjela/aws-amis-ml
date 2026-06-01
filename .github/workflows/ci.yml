@@ -21,6 +21,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
+      - name: Mask sensitive values in logs
+        run: |
+          echo "::add-mask::${{ github.repository }}"
+          echo "::add-mask::${{ github.workspace }}"
+          echo "::add-mask::${{ github.actor }}"
+          # Mask any potential AWS IDs, subnet IDs, security group IDs found in files
+          if grep -r "ami-[a-f0-9]\{17\}\|subnet-[a-f0-9]\{17\}\|sg-[a-f0-9]\{17\}" --include="*.hcl" --include="*.sh" . 2>/dev/null | cut -d: -f2 | sort -u; then
+            while read -r value; do
+              [[ -n "$value" ]] && echo "::add-mask::$value"
+            done < <(grep -r "ami-[a-f0-9]\{17\}\|subnet-[a-f0-9]\{17\}\|sg-[a-f0-9]\{17\}" --include="*.hcl" --include="*.sh" . 2>/dev/null | grep -o "[a-f0-9\-]*-[a-f0-9]\{17\}" | sort -u)
+          fi
+
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
 
