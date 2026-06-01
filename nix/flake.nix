@@ -19,9 +19,13 @@
             inherit system;
             overlays = [(final: prev: {
               # Skip doctests in pytest-doctestplus due to numpy.ufunc compatibility
+              # Skip astropy tests due to numpy/IERS table compatibility issues
               python311 = prev.python311.override {
                 packageOverrides = pyfinal: pyprev: {
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  astropy = pyprev.astropy.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                 };
@@ -31,11 +35,17 @@
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
                     doCheck = false;
                   });
+                  astropy = pyprev.astropy.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
               python313 = prev.python313.override {
                 packageOverrides = pyfinal: pyprev: {
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  astropy = pyprev.astropy.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                 };
