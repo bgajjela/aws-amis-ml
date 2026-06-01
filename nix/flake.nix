@@ -18,11 +18,12 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [(final: prev: {
-              # Disable flaky package test suites in the interpreter package set
-              # used by python.withPackages. Astropy 7.0.1 currently fails IERS tests
-              # on the nixos-25.05 stack; pytest-doctestplus also has known NumPy
-              # compatibility issues. jupyter-server has an intermittently failing
-              # kernel-culling websocket test in CI runners.
+              # Disable flaky or excessively slow package test suites in the
+              # interpreter package set used by python.withPackages. Astropy 7.0.1
+              # currently fails IERS tests on the nixos-25.05 stack; pytest-doctestplus
+              # has known NumPy compatibility issues; jupyter-server has an
+              # intermittently failing kernel-culling websocket test in CI runners;
+              # dask's suite is very large and can stall cache warmup on hosted runners.
               python311 = prev.python311.override {
                 packageOverrides = pyfinal: pyprev: {
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
@@ -32,6 +33,9 @@
                     doCheck = false;
                   });
                   jupyter-server = pyprev.jupyter-server.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  dask = pyprev.dask.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                 };
@@ -47,6 +51,9 @@
                   jupyter-server = pyprev.jupyter-server.overridePythonAttrs (old: {
                     doCheck = false;
                   });
+                  dask = pyprev.dask.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
               python313 = prev.python313.override {
@@ -56,6 +63,9 @@
                   });
                   astropy = pyprev.astropy.overridePythonAttrs (old: { doCheck = false; });
                   jupyter-server = pyprev.jupyter-server.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  dask = pyprev.dask.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                 };

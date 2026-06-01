@@ -2,6 +2,8 @@ name: Build Cache (x86_64)
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'nix/flake.nix'
       - 'nix/flake.lock'
@@ -10,6 +12,10 @@ on:
     # Weekly rebuild: Sunday 2am UTC
     - cron: '0 2 * * 0'
   workflow_dispatch:
+
+concurrency:
+  group: build-nix-cache-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -50,18 +56,21 @@ jobs:
         run: |
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
+            -o /tmp/py-base \
             ./nix#py-base --print-build-logs 2>&1 | tee /tmp/py-base.log
 
       - name: Build Python 3.12 base environment
         run: |
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
+            -o /tmp/py-base-py312 \
             ./nix#py-base-py312 --print-build-logs 2>&1 | tee /tmp/py-base-py312.log
 
       - name: Build Python 3.13 base environment
         run: |
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
+            -o /tmp/py-base-py313 \
             ./nix#py-base-py313 --print-build-logs 2>&1 | tee /tmp/py-base-py313.log
 
       - name: Build language toolchains (parallel)
@@ -70,6 +79,23 @@ jobs:
             --max-jobs auto --cores 0 \
             ./nix#python313 ./nix#julia ./nix#R ./nix#go ./nix#java ./nix#spark \
             ./nix#rustc ./nix#cargo ./nix#nodejs --print-build-logs 2>&1 | tee /tmp/langs.log
+
+      - name: Smoke test Python environments
+        run: |
+          /tmp/py-base/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL, skimage; print('py311 ok')"
+          /tmp/py-base-py312/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL, skimage; print('py312 ok')"
+          /tmp/py-base-py313/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL, skimage; print('py313 ok')"
+
+      - name: Smoke test language toolchains
+        run: |
+          nix run ./nix#python313 -- --version
+          nix run ./nix#julia -- -e 'println(VERSION)'
+          nix run ./nix#R -- --version | head -1
+          nix run ./nix#go -- version
+          nix run ./nix#java -- -version
+          nix run ./nix#rustc -- --version
+          nix run ./nix#cargo -- --version
+          nix run ./nix#nodejs -- --version
 
       - name: Push to Cachix
         if: always()
