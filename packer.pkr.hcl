@@ -27,8 +27,8 @@ source "amazon-ebs" "ubuntu_base" {
   ssh_username                = "ubuntu"
   instance_type               = var.instance_type
   spot_price                  = var.spot_price
-  subnet_id                   = var.subnet_id
-  security_group_id           = var.security_group_id
+  subnet_id                   = var.subnet_id != "" ? var.subnet_id : null  # Auto-select if not provided
+  security_group_id           = var.security_group_id != "" ? var.security_group_id : null
   associate_public_ip_address = var.associate_public_ip
   ami_regions                 = var.additional_regions
 
@@ -71,8 +71,8 @@ source "amazon-ebs" "ubuntu_pro" {
   ssh_username                = "ubuntu"
   instance_type               = var.instance_type
   spot_price                  = var.spot_price
-  subnet_id                   = var.subnet_id
-  security_group_id           = var.security_group_id
+  subnet_id                   = var.subnet_id != "" ? var.subnet_id : null  # Auto-select if not provided
+  security_group_id           = var.security_group_id != "" ? var.security_group_id : null
   associate_public_ip_address = var.associate_public_ip
   ami_regions                 = var.additional_regions
 
@@ -110,8 +110,8 @@ source "amazon-ebs" "ubuntu_arm_base" {
   ssh_username                = "ubuntu"
   instance_type               = var.arm_instance_type
   spot_price                  = var.spot_price
-  subnet_id                   = var.subnet_id
-  security_group_id           = var.security_group_id
+  subnet_id                   = var.subnet_id != "" ? var.subnet_id : null  # Auto-select if not provided
+  security_group_id           = var.security_group_id != "" ? var.security_group_id : null
   associate_public_ip_address = var.associate_public_ip
   ami_regions                 = var.additional_regions
 
@@ -153,8 +153,8 @@ source "amazon-ebs" "ubuntu_arm_pro" {
   ssh_username                = "ubuntu"
   instance_type               = var.arm_instance_type
   spot_price                  = var.spot_price
-  subnet_id                   = var.subnet_id
-  security_group_id           = var.security_group_id
+  subnet_id                   = var.subnet_id != "" ? var.subnet_id : null  # Auto-select if not provided
+  security_group_id           = var.security_group_id != "" ? var.security_group_id : null
   associate_public_ip_address = var.associate_public_ip
   ami_regions                 = var.additional_regions
 
