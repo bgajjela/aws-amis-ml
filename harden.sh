@@ -619,7 +619,7 @@ fi
 # ==============================
 # AppArmor / AIDE / PAM & Auth Policies (CIS)
 # ==============================
-sudo apt-get -y install apparmor apparmor-utils aide aide-common libpam-pwquality >/dev/null 2>&1 || true
+sudo DEBIAN_FRONTEND=noninteractive apt-get -y install apparmor apparmor-utils aide aide-common libpam-pwquality >/dev/null 2>&1 || true
 sudo systemctl enable apparmor >/dev/null 2>&1 || true
 sudo aa-enforce /etc/apparmor.d/* >/dev/null 2>&1 || true
 
