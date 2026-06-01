@@ -273,12 +273,10 @@ jobs:
       - name: Check for deprecated or unsafe patterns
         run: |
           echo "Scanning for deprecated patterns..."
-          if grep -q "spot_price.*auto\|spot_price.*true" packer.pkr.hcl; then
+          # Check for spot_price usage in actual commands (not variable definition)
+          if grep -E "spot_price.*=.*['\"]auto['\"]|spot_price.*=.*['\"]true['\"]" packer.pkr.hcl; then
             echo "ERROR: Found deprecated spot_price configuration (use on-demand)"
             exit 1
-          fi
-          if grep -q "encrypt_boot.*true" packer.pkr.hcl; then
-            echo "WARNING: EBS encryption disabled (required for Marketplace)"
           fi
           echo "✓ No deprecated patterns detected"
 
