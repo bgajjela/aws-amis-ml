@@ -286,8 +286,8 @@ build {
       "sudo chmod +x /tmp/harden.sh",
       "sudo systemctl daemon-reload",
       "sudo /tmp/harden.sh",
-      "[[ -f /tmp/spark-java.sh ]] && sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
-      "[[ -f /tmp/ami-scan.sh ]] && sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
+      "test -f /tmp/spark-java.sh && sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
+      "test -f /tmp/ami-scan.sh && sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
       # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
       "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
     ]
@@ -299,7 +299,7 @@ build {
     inline = [
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command flake lock /opt/nix/flake'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command,flakes flake lock /opt/nix/flake'",
       "sudo chmod +x /tmp/build-base-envs.sh",
       "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
@@ -501,7 +501,7 @@ build {
     inline = [
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command flake lock /opt/nix/flake'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command,flakes flake lock /opt/nix/flake'",
       "sudo chmod +x /tmp/build-base-envs.sh",
       "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
