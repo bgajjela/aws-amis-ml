@@ -193,8 +193,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Install Packer
         run: |
@@ -298,8 +299,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Run AMI tests — x86 base
         run: |
@@ -363,8 +365,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Install Packer
         run: |
@@ -469,8 +472,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Run AMI tests — x86 pro
         run: |
@@ -534,8 +538,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Install Packer
         run: |
@@ -639,8 +644,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Run AMI tests — ARM64 base
         run: |
@@ -704,8 +710,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Install Packer
         run: |
@@ -810,8 +817,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Run AMI tests — ARM64 pro
         run: |
@@ -878,8 +886,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Tag all built AMIs
         env:
@@ -994,8 +1003,9 @@ jobs:
           done
 
           # Mask packer subnet secret if set
-          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+          if [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]]; then
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+          fi
 
       - name: Terminate orphaned test instances
         run: |
