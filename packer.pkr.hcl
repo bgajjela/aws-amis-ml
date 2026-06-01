@@ -213,10 +213,16 @@ build {
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
+      # software-properties-common needed for add-apt-repository (OpenSCAP PPA)
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils software-properties-common",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      "sudo apt-get -y install openscap-scanner libopenscap8 ssg-debderived",
-      "sudo apt-get -y install amazon-ssm-agent",
+      # openscap-scanner and scap-security-guide are not in Ubuntu 22.04 standard repos — use OpenSCAP PPA
+      "sudo add-apt-repository -y ppa:openscap/openscap",
+      "sudo apt-get update",
+      "sudo apt-get -y install openscap-scanner libopenscap8 scap-security-guide",
+      # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
+      "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb",
+      "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       "sudo systemctl enable auditd chrony unattended-upgrades amazon-ssm-agent",
@@ -421,10 +427,13 @@ build {
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils software-properties-common",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      "sudo apt-get -y install openscap-scanner libopenscap8 ssg-debderived",
-      "sudo apt-get -y install amazon-ssm-agent",
+      "sudo add-apt-repository -y ppa:openscap/openscap",
+      "sudo apt-get update",
+      "sudo apt-get -y install openscap-scanner libopenscap8 scap-security-guide",
+      "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_arm64/amazon-ssm-agent.deb",
+      "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       "sudo systemctl enable auditd chrony unattended-upgrades amazon-ssm-agent",
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
