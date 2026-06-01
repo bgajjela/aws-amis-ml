@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-nix-cache-${{ github.ref }}
+  group: build-nix-cache-main
   cancel-in-progress: true
 
 permissions:
@@ -23,6 +23,7 @@ permissions:
 
 jobs:
   build-nix-cache-x86:
+    if: github.ref == 'refs/heads/main' && github.actor != 'dependabot[bot]'
     name: Build Nix cache x86_64
     runs-on: ubuntu-22.04
     timeout-minutes: 120
