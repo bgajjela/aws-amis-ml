@@ -95,20 +95,24 @@ jobs:
       - name: Verify required provisioner files exist
         run: |
           echo "Checking required scripts and provisioners..."
-          required_files=(
-            "packer.pkr.hcl"
-            "harden.sh"
-            "nix/flake.nix"
-            "scripts/build-base-envs.sh"
-            "scripts/ami-finalize.sh"
-            "scripts/test-ami.sh"
-          )
-          for file in "${required_files[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              echo "ERROR: Required file missing: $file"
-              exit 1
+          files_ok=true
+          for file in \
+            "packer.pkr.hcl" \
+            "harden.sh" \
+            "nix/flake.nix" \
+            "scripts/build-base-envs.sh" \
+            "scripts/ami-finalize.sh" \
+            "scripts/test-ami.sh"; do
+            if [ ! -f "$file" ]; then
+              echo "  ✗ MISSING: $file"
+              files_ok=false
+            else
+              echo "  ✓ $file"
             fi
           done
+          if [ "$files_ok" = false ]; then
+            exit 1
+          fi
           echo "✓ All required provisioner files present"
 
       - name: Verify Nix flake outputs
