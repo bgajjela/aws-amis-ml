@@ -186,6 +186,7 @@ jobs:
       - name: Packer build — x86 base
         id: packer
         run: |
+          set -o pipefail
           packer init .
           packer build \
             -machine-readable \
@@ -200,6 +201,13 @@ jobs:
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID=$(aws ec2 describe-images --owners self \
+              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-base-*" \
+              --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+              --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -288,6 +296,7 @@ jobs:
       - name: Packer build — x86 pro
         id: packer
         run: |
+          set -o pipefail
           packer init .
           packer build \
             -machine-readable \
@@ -302,6 +311,13 @@ jobs:
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID=$(aws ec2 describe-images --owners self \
+              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-pro-*" \
+              --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+              --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -390,6 +406,7 @@ jobs:
       - name: Packer build — ARM64 base
         id: packer
         run: |
+          set -o pipefail
           packer init .
           packer build \
             -machine-readable \
@@ -404,6 +421,13 @@ jobs:
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID=$(aws ec2 describe-images --owners self \
+              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-arm64-base-*" \
+              --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+              --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -492,6 +516,7 @@ jobs:
       - name: Packer build — ARM64 pro
         id: packer
         run: |
+          set -o pipefail
           packer init .
           packer build \
             -machine-readable \
@@ -506,6 +531,13 @@ jobs:
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID=$(aws ec2 describe-images --owners self \
+              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-arm64-pro-*" \
+              --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+              --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
