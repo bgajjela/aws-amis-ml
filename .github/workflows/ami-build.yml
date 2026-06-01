@@ -217,6 +217,25 @@ jobs:
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve OpenSCAP release
+        id: openscap
+        run: |
+          # Fetch latest OpenSCAP release URL, or empty string if none exists
+          RELEASE_URL=$(gh release list --repo "${{ github.repository }}" \
+            --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
+
+          if [[ -n "$RELEASE_URL" ]]; then
+            # Extract the tarball URL from the release
+            OPENSCAP_URL=$(gh api "repos/${{ github.repository }}/releases/latest" \
+              --jq '.assets[] | select(.name | contains("openscap")) | .browser_download_url' 2>/dev/null | head -1)
+            if [[ -z "$OPENSCAP_URL" ]]; then
+              echo "⚠ OpenSCAP release found but no tarball asset. Skipping OpenSCAP."
+            fi
+          else
+            echo "ℹ No OpenSCAP release found. Run 'gh workflow run build-openscap.yml' to build it."
+          fi
+          echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
+
       - name: Packer build — x86 base
         id: packer
         run: |
@@ -229,6 +248,7 @@ jobs:
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
+            -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . 2>&1 | tee /tmp/packer-build.log
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
@@ -389,6 +409,25 @@ jobs:
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve OpenSCAP release
+        id: openscap
+        run: |
+          # Fetch latest OpenSCAP release URL, or empty string if none exists
+          RELEASE_URL=$(gh release list --repo "${{ github.repository }}" \
+            --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
+
+          if [[ -n "$RELEASE_URL" ]]; then
+            # Extract the tarball URL from the release
+            OPENSCAP_URL=$(gh api "repos/${{ github.repository }}/releases/latest" \
+              --jq '.assets[] | select(.name | contains("openscap")) | .browser_download_url' 2>/dev/null | head -1)
+            if [[ -z "$OPENSCAP_URL" ]]; then
+              echo "⚠ OpenSCAP release found but no tarball asset. Skipping OpenSCAP."
+            fi
+          else
+            echo "ℹ No OpenSCAP release found. Run 'gh workflow run build-openscap.yml' to build it."
+          fi
+          echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
+
       - name: Packer build — x86 pro
         id: packer
         run: |
@@ -402,6 +441,7 @@ jobs:
             -var "base_ami_id=${{ needs.test-x86-base.outputs.ami_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
+            -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . 2>&1 | tee /tmp/packer-build.log
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
@@ -562,6 +602,25 @@ jobs:
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve OpenSCAP release
+        id: openscap
+        run: |
+          # Fetch latest OpenSCAP release URL, or empty string if none exists
+          RELEASE_URL=$(gh release list --repo "${{ github.repository }}" \
+            --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
+
+          if [[ -n "$RELEASE_URL" ]]; then
+            # Extract the tarball URL from the release
+            OPENSCAP_URL=$(gh api "repos/${{ github.repository }}/releases/latest" \
+              --jq '.assets[] | select(.name | contains("openscap")) | .browser_download_url' 2>/dev/null | head -1)
+            if [[ -z "$OPENSCAP_URL" ]]; then
+              echo "⚠ OpenSCAP release found but no tarball asset. Skipping OpenSCAP."
+            fi
+          else
+            echo "ℹ No OpenSCAP release found. Run 'gh workflow run build-openscap.yml' to build it."
+          fi
+          echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
+
       - name: Packer build — ARM64 base
         id: packer
         run: |
@@ -574,6 +633,7 @@ jobs:
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
+            -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . 2>&1 | tee /tmp/packer-build.log
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
@@ -734,6 +794,25 @@ jobs:
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve OpenSCAP release
+        id: openscap
+        run: |
+          # Fetch latest OpenSCAP release URL, or empty string if none exists
+          RELEASE_URL=$(gh release list --repo "${{ github.repository }}" \
+            --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
+
+          if [[ -n "$RELEASE_URL" ]]; then
+            # Extract the tarball URL from the release
+            OPENSCAP_URL=$(gh api "repos/${{ github.repository }}/releases/latest" \
+              --jq '.assets[] | select(.name | contains("openscap")) | .browser_download_url' 2>/dev/null | head -1)
+            if [[ -z "$OPENSCAP_URL" ]]; then
+              echo "⚠ OpenSCAP release found but no tarball asset. Skipping OpenSCAP."
+            fi
+          else
+            echo "ℹ No OpenSCAP release found. Run 'gh workflow run build-openscap.yml' to build it."
+          fi
+          echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
+
       - name: Packer build — ARM64 pro
         id: packer
         run: |
@@ -747,6 +826,7 @@ jobs:
             -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
+            -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . 2>&1 | tee /tmp/packer-build.log
 
           AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
