@@ -36,7 +36,7 @@ jobs:
           git clone https://github.com/OpenSCAP/openscap.git .
           mkdir -p build
           cd build
-          cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DENABLE_PYTHON=OFF
           make -j$(nproc)
           sudo make install
           sudo ldconfig
