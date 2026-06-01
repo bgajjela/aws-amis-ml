@@ -25,7 +25,6 @@ locals {
 source "amazon-ebs" "ubuntu_base" {
   region                      = var.region
   ssh_username                = "ubuntu"
-  ena_support                 = true
   instance_type               = var.instance_type
   spot_price                  = var.spot_price
   subnet_id                   = var.subnet_id
@@ -70,7 +69,6 @@ source "amazon-ebs" "ubuntu_base" {
 source "amazon-ebs" "ubuntu_pro" {
   region                      = var.region
   ssh_username                = "ubuntu"
-  ena_support                 = true
   instance_type               = var.instance_type
   spot_price                  = var.spot_price
   subnet_id                   = var.subnet_id
@@ -110,7 +108,6 @@ source "amazon-ebs" "ubuntu_pro" {
 source "amazon-ebs" "ubuntu_arm_base" {
   region                      = var.region
   ssh_username                = "ubuntu"
-  ena_support                 = true
   instance_type               = var.arm_instance_type
   spot_price                  = var.spot_price
   subnet_id                   = var.subnet_id
@@ -154,7 +151,6 @@ source "amazon-ebs" "ubuntu_arm_base" {
 source "amazon-ebs" "ubuntu_arm_pro" {
   region                      = var.region
   ssh_username                = "ubuntu"
-  ena_support                 = true
   instance_type               = var.arm_instance_type
   spot_price                  = var.spot_price
   subnet_id                   = var.subnet_id
