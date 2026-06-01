@@ -18,10 +18,16 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [(final: prev: {
-              # Disable astropy and pytest-doctestplus tests globally due to numpy compatibility
+              # Disable flaky scientific-package tests in the interpreter package set
+              # used by python.withPackages. Astropy 7.0.1 currently fails IERS tests
+              # on Python 3.12 with the nixos-25.05 stack; pytest-doctestplus also
+              # has known NumPy compatibility issues.
               python311 = prev.python311.override {
                 packageOverrides = pyfinal: pyprev: {
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  astropy = pyprev.astropy.overridePythonAttrs (old: {
                     doCheck = false;
                   });
                 };
@@ -31,6 +37,9 @@
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
                     doCheck = false;
                   });
+                  astropy = pyprev.astropy.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
               python313 = prev.python313.override {
@@ -38,21 +47,6 @@
                   pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
                     doCheck = false;
                   });
-                };
-              };
-              # Disable astropy tests at pkgs level to catch transitive deps
-              python311Packages = prev.python311Packages.override {
-                overrides = pyfinal: pyprev: {
-                  astropy = pyprev.astropy.overridePythonAttrs (old: { doCheck = false; });
-                };
-              };
-              python312Packages = prev.python312Packages.override {
-                overrides = pyfinal: pyprev: {
-                  astropy = pyprev.astropy.overridePythonAttrs (old: { doCheck = false; });
-                };
-              };
-              python313Packages = prev.python313Packages.override {
-                overrides = pyfinal: pyprev: {
                   astropy = pyprev.astropy.overridePythonAttrs (old: { doCheck = false; });
                 };
               };
