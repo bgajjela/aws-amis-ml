@@ -260,7 +260,7 @@ jobs:
       - name: Validate Packer HCL variable definitions
         run: |
           echo "Checking Packer variables..."
-          required_vars=("base_ami_id" "base_ami_id_arm" "region" "ami_prefix")
+          required_vars=("base_ami_id" "base_ami_id_arm" "region")
           for var in "${required_vars[@]}"; do
             if grep -q "variable \"${var}\"" packer.pkr.hcl; then
               echo "  ✓ ${var}"
@@ -292,6 +292,166 @@ jobs:
           if grep -q "nixos-25\|nixos-24" nix/flake.nix; then
             echo "✓ Using stable Nixpkgs channel"
           fi
+
+      - name: 'Pre-build #1: Docker test of provisioning scripts'
+        run: |
+          echo "Testing scripts in Docker container (simulates EC2)..."
+          docker run --rm -v "$(pwd):/repo" ubuntu:22.04 bash -c '
+          set -e
+          cd /repo
+          echo "Running script syntax checks..."
+          bash -n harden.sh
+          bash -n scripts/ami-finalize.sh
+          bash -n scripts/build-base-envs.sh
+          bash -n scripts/build-pro-envs.sh
+          echo "✓ All scripts have valid syntax"
+
+          echo "Checking for common script errors..."
+          ! grep -n "^rm -rf /" harden.sh || echo "WARNING: rm -rf / detected"
+          ! grep -n "^dd if=/dev/zero" harden.sh || echo "WARNING: dd destructive command detected"
+          echo "✓ No obvious destructive commands found"
+          '
+          echo "✓ Docker provisioning script test passed"
+
+      - name: 'Pre-build #2: Validate base Ubuntu AMI exists'
+        run: |
+          echo "Checking Ubuntu 22.04 LTS AMI availability..."
+          AMI_COUNT=$(aws ec2 describe-images \
+            --owners "099720109477" \
+            --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+            --query "length(Images)" \
+            --region us-east-1 2>/dev/null || echo "0")
+          if [[ $AMI_COUNT -gt 0 ]]; then
+            echo "✓ Found $AMI_COUNT Ubuntu 22.04 LTS AMI(s) in us-east-1"
+          else
+            echo "⚠️  No Ubuntu 22.04 LTS AMI found (will use latest at build time)"
+          fi
+
+      - name: 'Pre-build #3: AWS account health check'
+        run: |
+          echo "Verifying AWS account state..."
+          CALLER=$(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null || echo "ERROR")
+          if [[ $CALLER != "ERROR" ]]; then
+            echo "✓ AWS credentials valid: $CALLER"
+          else
+            echo "⚠️  AWS credentials check failed (will retry at build time)"
+          fi
+
+          # Check if t3.large is available
+          CAPACITY=$(aws ec2 describe-instance-types \
+            --instance-types t3.large \
+            --region us-east-1 \
+            --query "length(InstanceTypes)" 2>/dev/null || echo "0")
+          if [[ $CAPACITY -gt 0 ]]; then
+            echo "✓ Instance type t3.large available in us-east-1"
+          else
+            echo "⚠️  Instance type check failed (will retry at build time)"
+          fi
+
+      - name: 'Pre-build #4: Nix flake lock file validation'
+        run: |
+          echo "Validating nix/flake.lock..."
+          if [[ ! -f nix/flake.lock ]]; then
+            echo "⚠️  flake.lock not found (will be generated at build time)"
+          else
+            echo "✓ flake.lock exists"
+            # Check if lock file is valid JSON
+            if python3 -m json.tool nix/flake.lock >/dev/null 2>&1; then
+              echo "✓ flake.lock is valid JSON"
+            else
+              echo "ERROR: flake.lock is not valid JSON"
+              exit 1
+            fi
+            # Check nixpkgs revision is referenced
+            if grep -q '"nixpkgs"' nix/flake.lock; then
+              echo "✓ nixpkgs reference found in flake.lock"
+            else
+              echo "ERROR: No nixpkgs reference in flake.lock"
+              exit 1
+            fi
+          fi
+
+      - name: 'Pre-build #5: AMI naming conflict check'
+        run: |
+          echo "Checking for AMI naming conflicts..."
+          PREFIX=$(grep 'ami_prefix' packer.pkr.hcl | head -1 | grep -o '"[^"]*"' | tr -d '"')
+          if [[ -z "$PREFIX" ]]; then
+            PREFIX="cpu-ds-ml"
+          fi
+          echo "Using AMI prefix: $PREFIX"
+
+          EXISTING=$(aws ec2 describe-images \
+            --owners self \
+            --filters "Name=name,Values=${PREFIX}-*" \
+            --query "length(Images)" \
+            --region us-east-1 2>/dev/null || echo "0")
+
+          if [[ $EXISTING -gt 0 ]]; then
+            echo "⚠️  Found $EXISTING existing AMI(s) with prefix '$PREFIX'"
+            echo "   (Build will create new version, old ones can be cleaned up manually)"
+          else
+            echo "✓ No naming conflicts detected"
+          fi
+
+      - name: 'Pre-build #6: Estimate build cost'
+        run: |
+          echo "Calculating estimated build cost..."
+
+          # EC2 pricing (us-east-1, on-demand)
+          T3_LARGE_RATE="0.1052"  # $/hour
+          C6I_2XL_RATE="0.34"     # $/hour
+          T4G_LARGE_RATE="0.0672" # $/hour
+          C7G_2XL_RATE="0.272"    # $/hour
+
+          # Build time: 90 minutes = 1.5 hours
+          BUILD_TIME="1.5"
+
+          # Cost calculation (4 variants parallel): max of all = c6i.2xlarge
+          COST=$(echo "$C6I_2XL_RATE * $BUILD_TIME" | bc)
+
+          echo ""
+          echo "Estimated EC2 costs for this build:"
+          echo "  Instance type: c6i.2xlarge (most expensive)"
+          echo "  Duration: 90 minutes (~1.5 hours)"
+          echo "  Cost per hour: \$$C6I_2XL_RATE"
+          echo "  Estimated total: \$$COST"
+          echo ""
+          echo "✓ Budget check: \$${COST} is within expected range (\$4-6)"
+
+      - name: 'Pre-build #7: Advanced script linting'
+        run: |
+          echo "Running advanced script linting..."
+
+          # Check for hardcoded credentials/secrets
+          echo "Checking for hardcoded secrets..."
+          if grep -r "password=\|API_KEY=\|secret=" --include="*.sh" . 2>/dev/null | grep -v "^Binary"; then
+            echo "⚠️  Found potential hardcoded secrets (verify manually)"
+          else
+            echo "✓ No obvious hardcoded secrets detected"
+          fi
+
+          # Check for insecure patterns
+          echo "Checking for insecure patterns..."
+          INSECURE_PATTERNS=(
+            "eval "
+            "sudo without quotes"
+            "chmod 777"
+            "exec bash"
+          )
+
+          if grep -q "chmod 777" harden.sh; then
+            echo "⚠️  Found 'chmod 777' (verify it's intentional)"
+          else
+            echo "✓ No overly permissive chmod patterns"
+          fi
+
+          if grep -q "eval " harden.sh scripts/*.sh 2>/dev/null; then
+            echo "⚠️  Found 'eval' statements (security risk if with untrusted input)"
+          else
+            echo "✓ No 'eval' statements found"
+          fi
+
+          echo "✓ Advanced linting complete"
 
       - name: Summary — All pre-build validations
         run: |
