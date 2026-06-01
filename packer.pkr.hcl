@@ -41,8 +41,9 @@ source "amazon-ebs" "ubuntu_base" {
   }
 
   # Wire EBS encryption variables declared at the bottom of this file
-  encrypt_boot = var.encrypt_ebs
-  kms_key_id   = var.kms_key_id
+  # Marketplace AMIs must not be encrypted at the AMI level — AWS cannot copy
+  # account-specific KMS keys across accounts or regions for distribution.
+  # Customers can encrypt their own EBS volumes at launch if required.
 
   source_ami_filter {
     owners      = ["099720109477"] # Canonical
@@ -58,8 +59,6 @@ source "amazon-ebs" "ubuntu_base" {
     device_name           = "/dev/sda1"
     volume_size           = var.root_volume_size
     volume_type           = "gp3"
-    encrypted             = var.encrypt_ebs
-    kms_key_id            = var.kms_key_id
     delete_on_termination = true
   }
 
@@ -90,15 +89,14 @@ source "amazon-ebs" "ubuntu_pro" {
     http_put_response_hop_limit = 1
   }
 
-  encrypt_boot = var.encrypt_ebs
-  kms_key_id   = var.kms_key_id
+  # Marketplace AMIs must not be encrypted at the AMI level — AWS cannot copy
+  # account-specific KMS keys across accounts or regions for distribution.
+  # Customers can encrypt their own EBS volumes at launch if required.
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
     volume_size           = var.root_volume_size
     volume_type           = "gp3"
-    encrypted             = var.encrypt_ebs
-    kms_key_id            = var.kms_key_id
     delete_on_termination = true
   }
 
@@ -127,8 +125,9 @@ source "amazon-ebs" "ubuntu_arm_base" {
     http_put_response_hop_limit = 1
   }
 
-  encrypt_boot = var.encrypt_ebs
-  kms_key_id   = var.kms_key_id
+  # Marketplace AMIs must not be encrypted at the AMI level — AWS cannot copy
+  # account-specific KMS keys across accounts or regions for distribution.
+  # Customers can encrypt their own EBS volumes at launch if required.
 
   source_ami_filter {
     owners      = ["099720109477"] # Canonical
@@ -144,8 +143,6 @@ source "amazon-ebs" "ubuntu_arm_base" {
     device_name           = "/dev/sda1"
     volume_size           = var.root_volume_size
     volume_type           = "gp3"
-    encrypted             = var.encrypt_ebs
-    kms_key_id            = var.kms_key_id
     delete_on_termination = true
   }
 
@@ -175,15 +172,14 @@ source "amazon-ebs" "ubuntu_arm_pro" {
     http_put_response_hop_limit = 1
   }
 
-  encrypt_boot = var.encrypt_ebs
-  kms_key_id   = var.kms_key_id
+  # Marketplace AMIs must not be encrypted at the AMI level — AWS cannot copy
+  # account-specific KMS keys across accounts or regions for distribution.
+  # Customers can encrypt their own EBS volumes at launch if required.
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
     volume_size           = var.root_volume_size
     volume_type           = "gp3"
-    encrypted             = var.encrypt_ebs
-    kms_key_id            = var.kms_key_id
     delete_on_termination = true
   }
 
@@ -600,11 +596,6 @@ variable "associate_public_ip" {
   type    = bool
   default = true
 }
-variable "encrypt_ebs" {
-  type    = bool
-  default = true
-}
-variable "kms_key_id"          { default = "" }
 # Comma-separated list of additional regions to copy the AMI into after build.
 # Example: ["us-west-2","eu-west-1","ap-southeast-1"]
 variable "additional_regions" {

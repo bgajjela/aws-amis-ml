@@ -194,7 +194,6 @@ jobs:
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "spot_price=auto" \
-            -var "encrypt_ebs=true" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -305,7 +304,6 @@ jobs:
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id=${{ needs.test-x86-base.outputs.ami_id }}" \
             -var "spot_price=auto" \
-            -var "encrypt_ebs=true" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -415,7 +413,6 @@ jobs:
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "spot_price=auto" \
-            -var "encrypt_ebs=true" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -526,7 +523,6 @@ jobs:
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
             -var "spot_price=auto" \
-            -var "encrypt_ebs=true" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
