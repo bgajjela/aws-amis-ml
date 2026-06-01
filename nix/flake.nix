@@ -64,7 +64,7 @@
           R         = pkgs.R;
           go        = pkgs.go;
           java      = pkgs.openjdk21;
-          spark     = pkgs.apacheSpark;
+          spark     = pkgs.spark;
           # Rust: powers tokenizers, polars internals, and ML infra tooling
           rustc     = pkgs.rustc;
           cargo     = pkgs.cargo;
