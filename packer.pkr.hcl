@@ -583,7 +583,7 @@ build {
 
 # c6i.xlarge: 4 vCPU / 8 GB — 2x faster Nix builds vs m6i.large at similar cost.
 # Use spot_price="auto" in vars to cut build cost by ~70% with Spot pricing.
-variable "instance_type"    { default = "t3.large" }
+variable "instance_type"    { default = "c6i.xlarge" }
 variable "spot_price"       { default = "" }          # set "auto" to use Spot
 variable "root_volume_size" { default = 24 }          # extra headroom for Nix store + pip wheels
 variable "subnet_id"           { default = "" }
