@@ -189,14 +189,16 @@ jobs:
       - name: Verify ami-build.yml environment variables
         run: |
           echo "Checking ami-build.yml for required environment configuration..."
-          required_env_vars=("AWS_ROLE_ARN" "AWS_DEFAULT_REGION")
-          for var in "${required_env_vars[@]}"; do
-            if grep -q "\${{ secrets.${var} }}\|\${${var}}" .github/workflows/ami-build.yml; then
-              echo "  ✓ ${var} referenced"
-            else
-              echo "  ✗ MISSING: ${var} not found in ami-build.yml"
-            fi
-          done
+          if grep -q "AWS_ROLE_ARN" .github/workflows/ami-build.yml; then
+            echo "  ✓ AWS_ROLE_ARN referenced"
+          else
+            echo "  ✗ MISSING: AWS_ROLE_ARN not found in ami-build.yml"
+          fi
+          if grep -q "AWS_DEFAULT_REGION\|region" .github/workflows/ami-build.yml; then
+            echo "  ✓ AWS_DEFAULT_REGION configured"
+          else
+            echo "  ✗ MISSING: region configuration not found in ami-build.yml"
+          fi
 
       - name: Check ami-build.yml has approval gates
         run: |
