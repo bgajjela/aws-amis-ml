@@ -286,8 +286,8 @@ build {
       "sudo chmod +x /tmp/harden.sh",
       "sudo systemctl daemon-reload",
       "sudo /tmp/harden.sh",
-      "sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh",
-      "sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan",
+      "[[ -f /tmp/spark-java.sh ]] && sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
+      "[[ -f /tmp/ami-scan.sh ]] && sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
       # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
       "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
     ]
