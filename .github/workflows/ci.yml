@@ -277,9 +277,9 @@ jobs:
       - name: Check for deprecated or unsafe patterns
         run: |
           echo "Scanning for deprecated patterns..."
-          # Check for spot_price usage in actual commands (not variable definition)
-          if grep -E "spot_price.*=.*['\"]auto['\"]|spot_price.*=.*['\"]true['\"]" packer.pkr.hcl; then
-            echo "ERROR: Found deprecated spot_price configuration (use on-demand)"
+          # Check for spot_price hardcoded to "auto" or "true" (allow var.spot_price references)
+          if grep -E '^\s+spot_price\s+=\s+["'"'"'](auto|true)["'"'"']' packer.pkr.hcl; then
+            echo "ERROR: Found deprecated spot_price hardcoded to auto/true"
             exit 1
           fi
           echo "✓ No deprecated patterns detected"
