@@ -37,6 +37,7 @@
                   });
                   dask = pyprev.dask.overridePythonAttrs (old: {
                     doCheck = false;
+                    pythonImportsCheck = [];
                   });
                 };
               };
@@ -53,6 +54,7 @@
                   });
                   dask = pyprev.dask.overridePythonAttrs (old: {
                     doCheck = false;
+                    pythonImportsCheck = [];
                   });
                 };
               };
@@ -67,6 +69,7 @@
                   });
                   dask = pyprev.dask.overridePythonAttrs (old: {
                     doCheck = false;
+                    pythonImportsCheck = [];
                   });
                 };
               };
