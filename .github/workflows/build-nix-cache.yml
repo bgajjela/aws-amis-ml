@@ -43,7 +43,7 @@ jobs:
         with:
           name: cpu-ds-ml
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-        if: secrets.CACHIX_AUTH_TOKEN != ''
+        if: ${{ secrets.CACHIX_AUTH_TOKEN != '' }}
 
       - name: Build Python 3.11 base environment
         run: |
@@ -71,7 +71,7 @@ jobs:
             ./nix#rustc ./nix#cargo ./nix#nodejs --print-build-logs 2>&1 | tee /tmp/langs.log
 
       - name: Push to Cachix
-        if: always() && secrets.CACHIX_AUTH_TOKEN != ''
+        if: always() && ${{ secrets.CACHIX_AUTH_TOKEN != '' }}
         run: |
           echo "To push to Cachix, run:"
           echo "  nix flake show"
