@@ -46,14 +46,11 @@ jobs:
 
       - name: Create tarball
         run: |
-          cd /usr/local
-          # Strip binaries to reduce size
-          strip -g bin/oscap bin/oscap-docker bin/oscap-chroot bin/oscap-ssh 2>/dev/null || true
-          # Tar only bin and essential lib files (exclude docs, examples, test files)
-          tar czf /tmp/openscap-ubuntu2204-x86_64.tar.gz \
-            --exclude='*.a' --exclude='*.la' --exclude='pkgconfig' \
-            --exclude='cmake' --exclude='doc' --exclude='examples' \
-            bin/ lib/
+          mkdir -p /tmp/oscap-pkg/usr/local/bin
+          strip /usr/local/bin/oscap -o /tmp/oscap-pkg/usr/local/bin/oscap 2>/dev/null || cp /usr/local/bin/oscap /tmp/oscap-pkg/usr/local/bin/
+          cd /tmp/oscap-pkg
+          # Uncompressed tar — much faster, we already have fast network
+          tar cf /tmp/openscap-ubuntu2204-x86_64.tar usr/
 
       - name: Create release
         env:
