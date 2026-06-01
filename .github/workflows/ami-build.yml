@@ -245,7 +245,6 @@ jobs:
             -machine-readable \
             -only=cpu-ds-ml-base.amazon-ebs.ubuntu_base \
             -var "region=${AWS_DEFAULT_REGION}" \
-            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
@@ -437,7 +436,6 @@ jobs:
             -machine-readable \
             -only=cpu-ds-ml-pro.amazon-ebs.ubuntu_pro \
             -var "region=${AWS_DEFAULT_REGION}" \
-            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id=${{ needs.test-x86-base.outputs.ami_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
@@ -630,7 +628,6 @@ jobs:
             -machine-readable \
             -only=cpu-ds-ml-arm64-base.amazon-ebs.ubuntu_arm_base \
             -var "region=${AWS_DEFAULT_REGION}" \
-            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
@@ -822,7 +819,6 @@ jobs:
             -machine-readable \
             -only=cpu-ds-ml-arm64-pro.amazon-ebs.ubuntu_arm_pro \
             -var "region=${AWS_DEFAULT_REGION}" \
-            -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \

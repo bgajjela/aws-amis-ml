@@ -217,9 +217,7 @@ build {
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
       # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
-      "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb",
-      "sudo dpkg -i /tmp/amazon-ssm-agent.deb 2>/dev/null || echo 'SSM agent install skipped (optional)'",
-      "rm -f /tmp/amazon-ssm-agent.deb",
+      # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
@@ -430,9 +428,7 @@ build {
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
       # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
-      "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_arm64/amazon-ssm-agent.deb",
-      "sudo dpkg -i /tmp/amazon-ssm-agent.deb 2>/dev/null || echo 'SSM agent install skipped (optional)'",
-      "rm -f /tmp/amazon-ssm-agent.deb",
+      # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
       "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
