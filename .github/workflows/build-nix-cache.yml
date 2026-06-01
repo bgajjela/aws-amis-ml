@@ -98,13 +98,13 @@ jobs:
           echo "════════════════════════════════════════════════════════════════"
 
       - name: Trigger AMI Build & Test workflow
-        if: success()
+        if: success() && github.ref == 'refs/heads/main'
         run: |
           echo "Triggering ami-build.yml..."
           gh workflow run ami-build.yml \
             --field target=base \
             --field region=us-east-1 \
-            --ref ${{ github.ref }}
+            --ref main
           echo ""
           echo "✅ AMI build triggered!"
           echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/ami-build.yml"
