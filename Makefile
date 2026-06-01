@@ -46,18 +46,18 @@ test:
 	         --exit-code 1 .
 
 build-base: validate
-	packer build $(PKFLAGS) -only=cpu-ds-ml-base .
+	packer build $(PKFLAGS) -only=cpu-ds-ml-base.amazon-ebs.ubuntu_base .
 
 build-pro:
-	packer build $(PKFLAGS) -only=cpu-ds-ml-pro .
+	packer build $(PKFLAGS) -only=cpu-ds-ml-pro.amazon-ebs.ubuntu_pro .
 
 build-all: build-base build-pro
 
 build-arm-base: validate
-	packer build $(PKFLAGS) -only=cpu-ds-ml-arm64-base .
+	packer build $(PKFLAGS) -only=cpu-ds-ml-arm64-base.amazon-ebs.ubuntu_arm_base .
 
 build-arm-pro:
-	packer build $(PKFLAGS) -only=cpu-ds-ml-arm64-pro .
+	packer build $(PKFLAGS) -only=cpu-ds-ml-arm64-pro.amazon-ebs.ubuntu_arm_pro .
 
 build-arm-all: build-arm-base build-arm-pro
 
