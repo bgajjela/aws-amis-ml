@@ -58,7 +58,11 @@ if ! [[ "$_RAW_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
   exit 1
 fi
 MY_CIDR="${_RAW_IP}/32"
-echo "Runner IP: $MY_CIDR | VPC: $VPC_ID | Subnet: $SUBNET_ID"
+# Mask sensitive network details in CI logs
+echo "::add-mask::${REGION}"
+echo "::add-mask::${VPC_ID}"
+echo "::add-mask::${SUBNET_ID}"
+echo "Runner IP: $MY_CIDR"
 
 # ── Temp security group (SSH in from runner only; restricted egress) ──────────
 TMP_SG_ID=$(aws ec2 create-security-group \
@@ -66,6 +70,7 @@ TMP_SG_ID=$(aws ec2 create-security-group \
   --description "Ephemeral AMI test SG — auto-deleted after test run" \
   --vpc-id "$VPC_ID" --region "$REGION" \
   --query 'GroupId' --output text)
+echo "::add-mask::${TMP_SG_ID}"
 
 # Inbound: SSH from this runner only
 aws ec2 authorize-security-group-ingress \

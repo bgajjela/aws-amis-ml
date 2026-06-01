@@ -167,6 +167,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -187,6 +190,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -259,6 +270,7 @@ jobs:
               --output text --region "$AWS_DEFAULT_REGION")
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
+          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -292,6 +304,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -312,6 +327,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -358,6 +381,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -378,6 +404,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -451,6 +485,7 @@ jobs:
               --output text --region "$AWS_DEFAULT_REGION")
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
+          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -484,6 +519,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -504,6 +542,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -550,6 +596,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -570,6 +619,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -642,6 +699,7 @@ jobs:
               --output text --region "$AWS_DEFAULT_REGION")
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
+          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -675,6 +733,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -695,6 +756,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -741,6 +810,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -761,6 +833,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -834,6 +914,7 @@ jobs:
               --output text --region "$AWS_DEFAULT_REGION")
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
+          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -867,6 +948,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -887,6 +971,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -936,6 +1028,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -956,6 +1051,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
@@ -1053,6 +1156,9 @@ jobs:
 
       - name: Mask sensitive values from logs
         run: |
+          # Mask AWS region
+          echo "::add-mask::${AWS_DEFAULT_REGION}"
+
           IDENTITY=$(aws sts get-caller-identity)
           ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
           USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
@@ -1073,6 +1179,14 @@ jobs:
           # Mask all subnet IDs
           aws ec2 describe-subnets \
             --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all security group IDs
+          aws ec2 describe-security-groups \
+            --query 'SecurityGroups[].GroupId' --output text \
             --region "${AWS_DEFAULT_REGION}" \
           | tr '\t' '\n' | while read -r ID; do
             [[ -n "$ID" ]] && echo "::add-mask::${ID}"
