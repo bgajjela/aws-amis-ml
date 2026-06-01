@@ -218,12 +218,14 @@ build {
       # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
       "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb",
-      "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
+      "sudo dpkg -i /tmp/amazon-ssm-agent.deb 2>/dev/null || echo 'SSM agent install skipped (optional)'",
+      "rm -f /tmp/amazon-ssm-agent.deb",
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
       "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
-      "sudo systemctl enable auditd chrony unattended-upgrades amazon-ssm-agent",
+      "sudo systemctl enable auditd chrony unattended-upgrades",
+      "sudo systemctl enable amazon-ssm-agent 2>/dev/null || true",  # Optional, may not have installed
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
       "sudo sshd -t && sudo systemctl reload ssh || true",
@@ -429,11 +431,13 @@ build {
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
       # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_arm64/amazon-ssm-agent.deb",
-      "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
+      "sudo dpkg -i /tmp/amazon-ssm-agent.deb 2>/dev/null || echo 'SSM agent install skipped (optional)'",
+      "rm -f /tmp/amazon-ssm-agent.deb",
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
       "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
-      "sudo systemctl enable auditd chrony unattended-upgrades amazon-ssm-agent",
+      "sudo systemctl enable auditd chrony unattended-upgrades",
+      "sudo systemctl enable amazon-ssm-agent 2>/dev/null || true",  # Optional, may not have installed
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
       "sudo sshd -t && sudo systemctl reload ssh || true",
