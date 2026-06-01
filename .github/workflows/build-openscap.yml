@@ -26,7 +26,8 @@ jobs:
             libxml2-dev libxslt1-dev \
             libapt-pkg-dev libcurl4-openssl-dev \
             libgcrypt-dev libdbus-1-dev \
-            libcap-dev libselinux1-dev
+            libcap-dev libselinux1-dev \
+            libxmlsec1-dev libxmlsec1-openssl
 
       - name: Clone and build OpenSCAP
         run: |
