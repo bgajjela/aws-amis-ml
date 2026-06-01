@@ -221,7 +221,7 @@ build {
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
-      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
+      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C / && echo 'OpenSCAP installed' || echo 'WARNING: OpenSCAP install failed, continuing without it'" : "echo 'OpenSCAP URL not provided, skipping'"}",
       "sudo systemctl enable auditd chrony unattended-upgrades",
       "sudo systemctl enable amazon-ssm-agent 2>/dev/null || true",  # Optional, may not have installed
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
@@ -299,7 +299,7 @@ build {
     inline = [
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix flake lock /opt/nix/flake'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command flake lock /opt/nix/flake'",
       "sudo chmod +x /tmp/build-base-envs.sh",
       "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
@@ -430,7 +430,7 @@ build {
       # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
       # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
-      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
+      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C / && echo 'OpenSCAP installed' || echo 'WARNING: OpenSCAP install failed, continuing without it'" : "echo 'OpenSCAP URL not provided, skipping'"}",
       "sudo systemctl enable auditd chrony unattended-upgrades",
       "sudo systemctl enable amazon-ssm-agent 2>/dev/null || true",  # Optional, may not have installed
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
@@ -501,7 +501,7 @@ build {
     inline = [
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
-      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix flake lock /opt/nix/flake'",
+      "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command flake lock /opt/nix/flake'",
       "sudo chmod +x /tmp/build-base-envs.sh",
       "sudo /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",

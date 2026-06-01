@@ -16,6 +16,12 @@ BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # ==============================
 sudo mkdir -p /usr/share/BUILD_INFO
 
+# Validate that Nix environments were built successfully before generating manifest
+NIX_ENVS_VALID=0
+if [[ -x "/opt/nix/envs/${VARIANT}/bin/python" ]]; then
+  NIX_ENVS_VALID=1
+fi
+
 {
   cat <<EOF
 CPU DS/ML AMI (${VARIANT}) — Package Manifest
@@ -23,19 +29,35 @@ Built:          ${BUILT_AT}
 Nixpkgs channel: nixos-25.05
 
 EOF
+
+  if [[ $NIX_ENVS_VALID -eq 0 ]]; then
+    echo "⚠️  WARNING: Nix environments not found at /opt/nix/envs/"
+    echo "This suggests the Nix build phase failed or timed out."
+    echo ""
+  fi
+
   echo "--- Python 3.11 (${VARIANT} env) ---"
-  /opt/nix/envs/${VARIANT}/bin/python -m pip list --format=columns 2>/dev/null \
-    || echo "(env not found)"
+  if [[ -x "/opt/nix/envs/${VARIANT}/bin/python" ]]; then
+    /opt/nix/envs/${VARIANT}/bin/python -m pip list --format=columns 2>/dev/null || echo "(pip list failed)"
+  else
+    echo "(environment not found at /opt/nix/envs/${VARIANT}/bin/python)"
+  fi
 
   echo ""
   echo "--- Python 3.12 (${VARIANT}-py312 env) ---"
-  /opt/nix/envs/${VARIANT}-py312/bin/python -m pip list --format=columns 2>/dev/null \
-    || echo "(env not found)"
+  if [[ -x "/opt/nix/envs/${VARIANT}-py312/bin/python" ]]; then
+    /opt/nix/envs/${VARIANT}-py312/bin/python -m pip list --format=columns 2>/dev/null || echo "(pip list failed)"
+  else
+    echo "(environment not found at /opt/nix/envs/${VARIANT}-py312/bin/python)"
+  fi
 
   echo ""
   echo "--- Python 3.13 (${VARIANT}-py313 env) ---"
-  /opt/nix/envs/${VARIANT}-py313/bin/python -m pip list --format=columns 2>/dev/null \
-    || echo "(env not found)"
+  if [[ -x "/opt/nix/envs/${VARIANT}-py313/bin/python" ]]; then
+    /opt/nix/envs/${VARIANT}-py313/bin/python -m pip list --format=columns 2>/dev/null || echo "(pip list failed)"
+  else
+    echo "(environment not found at /opt/nix/envs/${VARIANT}-py313/bin/python)"
+  fi
 
   echo ""
   echo "--- System packages (dpkg) ---"
@@ -44,6 +66,12 @@ EOF
 } | sudo tee /usr/share/BUILD_INFO/packages.txt >/dev/null
 
 sudo chmod 644 /usr/share/BUILD_INFO/packages.txt
+
+# Warn if Nix envs missing (but don't fail - manifest still useful even partial)
+if [[ $NIX_ENVS_VALID -eq 0 ]]; then
+  echo "⚠️  WARNING: Nix environments were not found. Build may have failed at Nix build phase."
+  echo "Check Packer logs for 'nix build' errors."
+fi
 
 # ==============================
 # SBOM (CycloneDX JSON)
