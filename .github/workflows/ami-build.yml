@@ -165,6 +165,17 @@ jobs:
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
 
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
       - name: Install Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg \
@@ -240,6 +251,17 @@ jobs:
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
 
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
       - name: Run AMI tests — x86 base
         run: |
           chmod +x scripts/test-ami.sh
@@ -273,6 +295,17 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
+
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
       - name: Install Packer
         run: |
@@ -350,6 +383,17 @@ jobs:
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
 
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
       - name: Run AMI tests — x86 pro
         run: |
           chmod +x scripts/test-ami.sh
@@ -383,6 +427,17 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
+
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
       - name: Install Packer
         run: |
@@ -459,6 +514,17 @@ jobs:
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
 
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
       - name: Run AMI tests — ARM64 base
         run: |
           chmod +x scripts/test-ami.sh
@@ -492,6 +558,17 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
+
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
       - name: Install Packer
         run: |
@@ -569,6 +646,17 @@ jobs:
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
 
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
       - name: Run AMI tests — ARM64 pro
         run: |
           chmod +x scripts/test-ami.sh
@@ -605,6 +693,17 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
+
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
       - name: Tag all built AMIs
         env:
@@ -690,6 +789,17 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
           audience: sts.amazonaws.com
+
+      - name: Mask sensitive values from logs
+        run: |
+          IDENTITY=$(aws sts get-caller-identity)
+          ACCOUNT_ID=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Account'])")
+          USER_ID=$(echo "$IDENTITY"    | python3 -c "import sys,json; print(json.load(sys.stdin)['UserId'])")
+          CALLER_ARN=$(echo "$IDENTITY" | python3 -c "import sys,json; print(json.load(sys.stdin)['Arn'])")
+          echo "::add-mask::${ACCOUNT_ID}"
+          echo "::add-mask::${USER_ID}"
+          echo "::add-mask::${CALLER_ARN}"
+          echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
       - name: Terminate orphaned test instances
         run: |
