@@ -211,6 +211,7 @@ build {
     pause_before = "30s"
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
+      "sudo apt-get update",
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
@@ -419,6 +420,7 @@ build {
     pause_before = "30s"
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
+      "sudo apt-get update",
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
       "sudo apt-get -y install openscap-scanner libopenscap8 ssg-debderived",
