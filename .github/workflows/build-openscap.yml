@@ -1,0 +1,67 @@
+name: Build OpenSCAP
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    paths:
+      - '.github/workflows/build-openscap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    name: Build OpenSCAP from source
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git \
+            libxml2-dev libxslt1-dev \
+            libapt-pkg-dev libcurl4-openssl-dev \
+            libgcrypt-dev libdbus-1-dev \
+            libcap-dev libselinux1-dev
+
+      - name: Clone and build OpenSCAP
+        run: |
+          git clone https://github.com/OpenSCAP/openscap.git
+          cd openscap
+          mkdir build && cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+          make -j$(nproc)
+          sudo make install
+
+      - name: Verify oscap binary
+        run: /usr/local/bin/oscap --version
+
+      - name: Create tarball
+        run: |
+          mkdir -p /tmp/openscap-dist/usr/local
+          cp -r /usr/local/bin /tmp/openscap-dist/usr/local/
+          cp -r /usr/local/lib /tmp/openscap-dist/usr/local/
+          cp -r /usr/local/share /tmp/openscap-dist/usr/local/
+          cd /tmp/openscap-dist
+          tar czf openscap-ubuntu2204-x86_64.tar.gz usr/
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="openscap-$(date +%Y%m%d-%H%M%S)"
+          gh release create "$TAG" \
+            /tmp/openscap-dist/openscap-ubuntu2204-x86_64.tar.gz \
+            --title "OpenSCAP Build for Ubuntu 22.04" \
+            --notes "Pre-built OpenSCAP binary for x86_64. Extract to / on target system." \
+            --repo "${{ github.repository }}"
+          echo "OPENSCAP_RELEASE=$TAG" >> $GITHUB_ENV
+
+      - name: Output release info
+        run: |
+          echo "OpenSCAP release: ${{ env.OPENSCAP_RELEASE }}"
+          echo "Download URL: https://github.com/${{ github.repository }}/releases/download/${{ env.OPENSCAP_RELEASE }}/openscap-ubuntu2204-x86_64.tar.gz"

@@ -221,6 +221,8 @@ build {
       "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
+      # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
+      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
       "sudo systemctl enable auditd chrony unattended-upgrades amazon-ssm-agent",
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
@@ -429,6 +431,8 @@ build {
       "curl -fsSL -o /tmp/amazon-ssm-agent.deb https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_arm64/amazon-ssm-agent.deb",
       "sudo dpkg -i /tmp/amazon-ssm-agent.deb && rm /tmp/amazon-ssm-agent.deb",
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
+      # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
+      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'OpenSCAP URL not provided, skipping'"}",
       "sudo systemctl enable auditd chrony unattended-upgrades amazon-ssm-agent",
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
@@ -605,3 +609,6 @@ variable "additional_regions" {
 }
 # c7g.xlarge: Graviton3, 4 vCPU / 8 GB — same spec class as c6i.xlarge used for x86.
 variable "arm_instance_type" { default = "c7g.xlarge" }
+# Pre-built OpenSCAP tarball URL (from GitHub releases, built by build-openscap.yml workflow)
+# Leave empty to skip OpenSCAP installation (ami-scan.sh handles gracefully)
+variable "openscap_url" { default = "" }
