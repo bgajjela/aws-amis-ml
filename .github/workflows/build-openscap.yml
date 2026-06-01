@@ -39,6 +39,7 @@ jobs:
           cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
           make -j$(nproc)
           sudo make install
+          sudo ldconfig
 
       - name: Verify oscap binary
         run: /usr/local/bin/oscap --version
