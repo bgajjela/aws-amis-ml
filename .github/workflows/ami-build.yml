@@ -161,6 +161,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Install Packer
         run: |
@@ -228,6 +229,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Run AMI tests — x86 base
         run: |
@@ -261,6 +263,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Install Packer
         run: |
@@ -328,6 +331,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Run AMI tests — x86 pro
         run: |
@@ -361,6 +365,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Install Packer
         run: |
@@ -428,6 +433,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Run AMI tests — ARM64 base
         run: |
@@ -461,6 +467,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Install Packer
         run: |
@@ -528,6 +535,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Run AMI tests — ARM64 pro
         run: |
@@ -564,6 +572,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Tag all built AMIs
         env:
@@ -648,6 +657,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-duration-seconds: 7200
+          audience: sts.amazonaws.com
 
       - name: Terminate orphaned test instances
         run: |
