@@ -7,38 +7,18 @@ packer {
 }
 
 variable "region" { default = "us-east-1" }
+# Pro builds layer on top of the base AMI. Pass the base AMI ID explicitly
+# rather than using a data source — Packer evaluates all data sources at
+# startup regardless of -only, which causes failures on first run when no
+# base AMI exists yet.
+# Pipeline sets this automatically from the base build job output.
+# Manual usage: packer build -only=cpu-ds-ml-pro -var "base_ami_id=ami-xxx" .
+variable "base_ami_id"     { default = "" }
+variable "base_ami_id_arm" { default = "" }
+
 locals {
   base_name     = "cpu-ds-ml-ubuntu-2204"
   arm_base_name = "cpu-ds-ml-ubuntu-2204-arm64"
-}
-
-# Discovers the most-recently-built base AMI so the pro build can layer on top
-# instead of repeating all hardening/toolchain work (~1.5h saved per build).
-# Run base first: packer build -only=cpu-ds-ml-base .
-# Then run pro:   packer build -only=cpu-ds-ml-pro .
-data "amazon-ami" "base" {
-  region      = var.region
-  most_recent = true
-  owners      = ["self"]
-  filters = {
-    name                = "${local.base_name}-base-*"
-    "tag:Role"          = "dsml"
-    virtualization-type = "hvm"
-  }
-}
-
-# Discovers the most-recently-built ARM base AMI for the pro ARM build.
-# Run arm base first: packer build -only=cpu-ds-ml-arm64-base .
-# Then run arm pro:   packer build -only=cpu-ds-ml-arm64-pro .
-data "amazon-ami" "base_arm" {
-  region      = var.region
-  most_recent = true
-  owners      = ["self"]
-  filters = {
-    name                = "${local.arm_base_name}-base-*"
-    "tag:Role"          = "dsml"
-    virtualization-type = "hvm"
-  }
 }
 
 # -------- Sources (one per AMI so we can set names/descriptions) --------
@@ -101,7 +81,7 @@ source "amazon-ebs" "ubuntu_pro" {
 
   # Start from the already-hardened base AMI — avoids repeating ~1.5h of work
   # (apt upgrade, hardening, Nix setup, Julia/R/Go/Java/Spark, base Python envs).
-  source_ami = data.amazon-ami.base.id
+  source_ami = var.base_ami_id
 
   # Enforce IMDSv2: prevents SSRF attacks from stealing EC2 role credentials via IMDSv1
   metadata_options {
@@ -186,7 +166,7 @@ source "amazon-ebs" "ubuntu_arm_pro" {
   ami_regions                 = var.additional_regions
 
   # Start from the already-hardened ARM base AMI
-  source_ami = data.amazon-ami.base_arm.id
+  source_ami = var.base_ami_id_arm
 
   # Enforce IMDSv2
   metadata_options {
