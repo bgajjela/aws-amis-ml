@@ -28,6 +28,7 @@ jobs:
             libgcrypt-dev libdbus-1-dev \
             libcap-dev libselinux1-dev \
             libxmlsec1-dev libxmlsec1-openssl \
+            libacl1-dev libpopt-dev libpcre2-dev \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Clone OpenSCAP source
