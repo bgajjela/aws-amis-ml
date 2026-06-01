@@ -234,8 +234,7 @@ build {
       # Install AWS CLI v2 with optional PGP signature verification (key: FB5DB77FD5C118B80511ADA8A6310ACC4672475C)
       "curl -fsSL 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o /tmp/awscliv2.zip",
       "curl -fsSL 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip.sig' -o /tmp/awscliv2.sig",
-      "gpg --keyserver hkps://keys.openpgp.org --recv-keys FB5DB77FD5C118B80511ADA8A6310ACC4672475C 2>/dev/null || echo 'GPG keyserver unreachable, skipping signature verification'",
-      "gpg --verify /tmp/awscliv2.sig /tmp/awscliv2.zip 2>/dev/null || echo 'GPG signature verification skipped'",
+      "set +e; gpg --keyserver hkps://keys.openpgp.org --recv-keys FB5DB77FD5C118B80511ADA8A6310ACC4672475C 2>/dev/null; gpg --verify /tmp/awscliv2.sig /tmp/awscliv2.zip 2>/dev/null; set -e",
       "unzip -q /tmp/awscliv2.zip -d /tmp",
       "sudo /tmp/aws/install",
       "rm -rf /tmp/awscliv2.zip /tmp/awscliv2.sig /tmp/aws",
@@ -444,8 +443,7 @@ build {
       # AWS CLI v2 — aarch64 build with optional PGP verification (key is the same as x86)
       "curl -fsSL 'https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip' -o /tmp/awscliv2.zip",
       "curl -fsSL 'https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip.sig' -o /tmp/awscliv2.sig",
-      "gpg --keyserver hkps://keys.openpgp.org --recv-keys FB5DB77FD5C118B80511ADA8A6310ACC4672475C 2>/dev/null || echo 'GPG keyserver unreachable, skipping signature verification'",
-      "gpg --verify /tmp/awscliv2.sig /tmp/awscliv2.zip 2>/dev/null || echo 'GPG signature verification skipped'",
+      "set +e; gpg --keyserver hkps://keys.openpgp.org --recv-keys FB5DB77FD5C118B80511ADA8A6310ACC4672475C 2>/dev/null; gpg --verify /tmp/awscliv2.sig /tmp/awscliv2.zip 2>/dev/null; set -e",
       "unzip -q /tmp/awscliv2.zip -d /tmp",
       "sudo /tmp/aws/install",
       "rm -rf /tmp/awscliv2.zip /tmp/awscliv2.sig /tmp/aws",
