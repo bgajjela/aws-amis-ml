@@ -58,7 +58,7 @@ jobs:
         run: |
           TAG="openscap-$(date +%Y%m%d-%H%M%S)"
           gh release create "$TAG" \
-            /tmp/openscap-ubuntu2204-x86_64.tar.gz \
+            /tmp/openscap-ubuntu2204-x86_64.tar \
             --title "OpenSCAP Build for Ubuntu 22.04" \
             --notes "Pre-built OpenSCAP binary for x86_64. Extract to / on target system." \
             --repo "${{ github.repository }}"
@@ -67,4 +67,4 @@ jobs:
       - name: Output release info
         run: |
           echo "OpenSCAP release: ${{ env.OPENSCAP_RELEASE }}"
-          echo "Download URL: https://github.com/${{ github.repository }}/releases/download/${{ env.OPENSCAP_RELEASE }}/openscap-ubuntu2204-x86_64.tar.gz"
+          echo "Download URL: https://github.com/${{ github.repository }}/releases/download/${{ env.OPENSCAP_RELEASE }}/openscap-ubuntu2204-x86_64.tar"
