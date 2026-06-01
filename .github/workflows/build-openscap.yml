@@ -30,9 +30,11 @@ jobs:
 
       - name: Clone and build OpenSCAP
         run: |
-          git clone https://github.com/OpenSCAP/openscap.git
-          cd openscap
-          mkdir build && cd build
+          mkdir -p /tmp/openscap-src
+          cd /tmp/openscap-src
+          git clone https://github.com/OpenSCAP/openscap.git .
+          mkdir -p build
+          cd build
           cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
           make -j$(nproc)
           sudo make install
