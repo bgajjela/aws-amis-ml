@@ -176,6 +176,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Install Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg \
@@ -206,7 +226,6 @@ jobs:
             -only=cpu-ds-ml-base.amazon-ebs.ubuntu_base \
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
-            -var "spot_price=auto" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -262,6 +281,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Run AMI tests — x86 base
         run: |
           chmod +x scripts/test-ami.sh
@@ -307,6 +346,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Install Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg \
@@ -338,7 +397,6 @@ jobs:
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id=${{ needs.test-x86-base.outputs.ami_id }}" \
-            -var "spot_price=auto" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -394,6 +452,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Run AMI tests — x86 pro
         run: |
           chmod +x scripts/test-ami.sh
@@ -439,6 +517,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Install Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg \
@@ -469,7 +567,6 @@ jobs:
             -only=cpu-ds-ml-arm64-base.amazon-ebs.ubuntu_arm_base \
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
-            -var "spot_price=auto" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -525,6 +622,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Run AMI tests — ARM64 base
         run: |
           chmod +x scripts/test-ami.sh
@@ -570,6 +687,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Install Packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg \
@@ -601,7 +738,6 @@ jobs:
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
-            -var "spot_price=auto" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             . 2>&1 | tee /tmp/packer-build.log
@@ -657,6 +793,26 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
+
       - name: Run AMI tests — ARM64 pro
         run: |
           chmod +x scripts/test-ami.sh
@@ -704,6 +860,26 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
 
       - name: Tag all built AMIs
         env:
@@ -800,6 +976,26 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Mask all VPC IDs
+          aws ec2 describe-vpcs \
+            --query 'Vpcs[].VpcId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask all subnet IDs
+          aws ec2 describe-subnets \
+            --query 'Subnets[].SubnetId' --output text \
+            --region "${AWS_DEFAULT_REGION}" \
+          | tr '\t' '\n' | while read -r ID; do
+            [[ -n "$ID" ]] && echo "::add-mask::${ID}"
+          done
+
+          # Mask packer subnet secret if set
+          [[ -n "${{ secrets.PACKER_SUBNET_ID }}" ]] && \
+            echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
 
       - name: Terminate orphaned test instances
         run: |

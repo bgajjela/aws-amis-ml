@@ -120,7 +120,10 @@ aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID" --region "$REGION"
 PUBLIC_IP=$(aws ec2 describe-instances \
   --instance-ids "$INSTANCE_ID" --region "$REGION" \
   --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-echo "Instance running at $PUBLIC_IP"
+# Mask IP and instance ID from CI logs
+echo "::add-mask::${PUBLIC_IP}"
+echo "::add-mask::${INSTANCE_ID}"
+echo "Instance running at ***"
 
 # ── Capture host key, then enforce it for all subsequent SSH connections ───────
 # ssh-keyscan collects the real host key while the instance is initialising;

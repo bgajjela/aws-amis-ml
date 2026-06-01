@@ -2,7 +2,7 @@
 # Copyright 2026 Dimenpoint
 packer {
   required_plugins {
-    amazon = { source = "github.com/hashicorp/amazon", version = ">= 1.3.0" }
+    amazon = { source = "github.com/hashicorp/amazon", version = "~> 1.7.0" }
   }
 }
 
