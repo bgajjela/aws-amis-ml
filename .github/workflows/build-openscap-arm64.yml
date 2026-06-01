@@ -1,0 +1,76 @@
+name: Build OpenSCAP ARM64
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    paths:
+      - '.github/workflows/build-openscap-arm64.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-22.04
+    name: Build OpenSCAP ARM64 (cross-compile)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Install build dependencies (including ARM64 cross-compile toolchain)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git \
+            libxml2-dev libxslt1-dev \
+            libapt-pkg-dev libcurl4-openssl-dev \
+            libgcrypt-dev libdbus-1-dev \
+            libcap-dev libselinux1-dev \
+            libxmlsec1-dev libxmlsec1-openssl \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Clone OpenSCAP source
+        run: |
+          mkdir -p /tmp/openscap-src
+          cd /tmp/openscap-src
+          git clone https://github.com/OpenSCAP/openscap.git .
+
+      - name: Build OpenSCAP (ARM64 cross-compile)
+        run: |
+          cd /tmp/openscap-src
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DENABLE_PYTHON=OFF
+          make -j$(nproc)
+
+      - name: Create ARM64 tarball
+        run: |
+          mkdir -p /tmp/oscap-arm64/usr/local/bin
+          cd /tmp/openscap-src/build
+          aarch64-linux-gnu-strip bin/oscap -o /tmp/oscap-arm64/usr/local/bin/oscap 2>/dev/null || cp bin/oscap /tmp/oscap-arm64/usr/local/bin/oscap
+          cd /tmp/oscap-arm64 && tar cf /tmp/openscap-ubuntu2204-arm64.tar usr/
+          ls -lh /tmp/openscap-ubuntu2204-arm64.tar
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="openscap-arm64-$(date +%Y%m%d-%H%M%S)"
+          gh release create "$TAG" \
+            /tmp/openscap-ubuntu2204-arm64.tar \
+            --title "OpenSCAP ARM64 — Ubuntu 22.04" \
+            --notes "Pre-built OpenSCAP binary for ARM64. Extract to / on target system." \
+            --repo "${{ github.repository }}"
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Output
+        run: |
+          echo "Release: ${{ env.RELEASE_TAG }}"
+          echo "Download: https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/openscap-ubuntu2204-arm64.tar"

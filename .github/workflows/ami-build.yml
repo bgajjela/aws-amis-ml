@@ -179,6 +179,10 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
+
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
             --query 'Vpcs[].VpcId' --output text \
@@ -316,6 +320,10 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
+
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
             --query 'Vpcs[].VpcId' --output text \
@@ -392,6 +400,10 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
 
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
@@ -531,6 +543,10 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
+
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
             --query 'Vpcs[].VpcId' --output text \
@@ -607,6 +623,10 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
 
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
@@ -745,6 +765,10 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
+
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
             --query 'Vpcs[].VpcId' --output text \
@@ -821,6 +845,10 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
 
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
@@ -960,6 +988,10 @@ jobs:
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
 
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
+
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
             --query 'Vpcs[].VpcId' --output text \
@@ -1039,6 +1071,10 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
 
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
@@ -1167,6 +1203,10 @@ jobs:
           echo "::add-mask::${USER_ID}"
           echo "::add-mask::${CALLER_ARN}"
           echo "::add-mask::${{ secrets.AWS_ROLE_ARN }}"
+
+          # Extract and mask role ID from USER_ID (e.g., AROAXL6U5N4RVZV3VPC7I)
+          ROLE_ID=$(echo "${USER_ID}" | cut -d: -f1)
+          [[ -n "$ROLE_ID" && "$ROLE_ID" != "$USER_ID" ]] && echo "::add-mask::${ROLE_ID}"
 
           # Mask all VPC IDs
           aws ec2 describe-vpcs \
