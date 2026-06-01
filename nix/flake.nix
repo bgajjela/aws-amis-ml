@@ -15,7 +15,33 @@
     in {
       packages = forAllSystems (system:
         let
-          pkgs = import nixpkgs { inherit system; };
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [(final: prev: {
+              # Skip doctests in pytest-doctestplus due to numpy.ufunc compatibility
+              python311 = prev.python311.override {
+                packageOverrides = pyfinal: pyprev: {
+                  pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                };
+              };
+              python312 = prev.python312.override {
+                packageOverrides = pyfinal: pyprev: {
+                  pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                };
+              };
+              python313 = prev.python313.override {
+                packageOverrides = pyfinal: pyprev: {
+                  pytest-doctestplus = pyprev.pytest-doctestplus.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                };
+              };
+            })];
+          };
 
           mkPyEnv = python: pkgsFn: python.withPackages pkgsFn;
 
