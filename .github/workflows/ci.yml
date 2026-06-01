@@ -479,10 +479,11 @@ jobs:
           echo "════════════════════════════════════════════════════════════════"
 
       - name: Trigger Nix Cache Pre-build workflow
+        if: github.ref == 'refs/heads/main'
         run: |
           echo "Triggering build-nix-cache.yml..."
           gh workflow run build-nix-cache.yml \
-            --ref ${{ github.ref }}
+            --ref main
           echo ""
           echo "✅ Nix cache pre-build triggered!"
           echo "This will:"
