@@ -139,6 +139,8 @@ jobs:
           packer validate \
             -var subnet_id=subnet-placeholder \
             -var security_group_id=sg-placeholder \
+            -var base_ami_id=ami-00000000000000000 \
+            -var base_ami_id_arm=ami-00000000000000000 \
             .
 
 # ── x86 base ────────────────────────────────────────────────────────────────
