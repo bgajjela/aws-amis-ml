@@ -283,10 +283,8 @@ build {
 
   provisioner "shell" {
     inline = [
-      "sudo chmod +x /tmp/*.sh",
-      "sudo chmod +x /tmp/harden.sh",
       "sudo systemctl daemon-reload",
-      "sudo /tmp/harden.sh",
+      "sudo bash /tmp/harden.sh",
       "test -f /tmp/spark-java.sh && sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
       "test -f /tmp/ami-scan.sh && sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
       # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
@@ -303,8 +301,7 @@ build {
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
       # Configure Cachix binary cache to speed up Nix builds
       "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
-      "sudo chmod +x /tmp/build-base-envs.sh",
-      "sudo /tmp/build-base-envs.sh",
+      "sudo bash /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
       "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
       "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
@@ -339,7 +336,7 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
-    inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh base"]
+    inline = ["sudo bash /tmp/ami-finalize.sh base"]
   }
 }
 
@@ -399,7 +396,7 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
-    inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh pro"]
+    inline = ["sudo bash /tmp/ami-finalize.sh pro"]
   }
 }
 
@@ -507,8 +504,7 @@ build {
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
       # Configure Cachix binary cache to speed up Nix builds
       "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
-      "sudo chmod +x /tmp/build-base-envs.sh",
-      "sudo /tmp/build-base-envs.sh",
+      "sudo bash /tmp/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
       "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
       "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
@@ -541,7 +537,7 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
-    inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh base"]
+    inline = ["sudo bash /tmp/ami-finalize.sh base"]
   }
 }
 
@@ -589,7 +585,7 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
-    inline = ["sudo chmod +x /tmp/ami-finalize.sh && sudo /tmp/ami-finalize.sh pro"]
+    inline = ["sudo bash /tmp/ami-finalize.sh pro"]
   }
 }
 
