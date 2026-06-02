@@ -23,6 +23,13 @@ def main() -> int:
         (r"(?i)(token[:=]\s*)(\S+)", r"\1***"),
         (r"\b(AKIA|ASIA)[0-9A-Z]{16}\b", "***AWS_ACCESS_KEY_ID***"),
         (r"arn:aws:[^\s\"']+", "***AWS_ARN***"),
+        (r"\bi-[0-9a-f]{17}\b", "***EC2_INSTANCE_ID***"),
+        (r"\bami-[0-9a-f]{17}\b", "***AMI_ID***"),
+        (r"\bvol-[0-9a-f]{17}\b", "***EBS_VOLUME_ID***"),
+        (r"\bsnap-[0-9a-f]{17}\b", "***EBS_SNAPSHOT_ID***"),
+        (r"\bvpc-[0-9a-f]{8,17}\b", "***VPC_ID***"),
+        (r"\bsubnet-[0-9a-f]{8,17}\b", "***SUBNET_ID***"),
+        (r"\bsg-[0-9a-f]{8,17}\b", "***SECURITY_GROUP_ID***"),
     ]
 
     for pattern, repl in patterns:
