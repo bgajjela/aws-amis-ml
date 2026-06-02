@@ -2,8 +2,8 @@ name: Build Cache (x86_64)
 
 on:
   schedule:
-    # Weekly rebuild: Sunday 2am UTC
-    - cron: '0 2 * * 0'
+    # Monthly rebuild: 1st of month at 2am UTC
+    - cron: '0 2 1 * *'
   workflow_dispatch:
 
 concurrency:
