@@ -1,13 +1,6 @@
 name: Build Cache (x86_64)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'nix/flake.nix'
-      - 'nix/flake.lock'
-      - '.github/workflows/build-nix-cache.yml'
   schedule:
     # Weekly rebuild: Sunday 2am UTC
     - cron: '0 2 * * 0'
