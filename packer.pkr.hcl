@@ -234,6 +234,7 @@ build {
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
       "sudo sshd -t && sudo systemctl reload ssh || true",
       "sudo mkdir -p /opt/venvs /usr/share",
+      "mkdir -p /home/ubuntu/packer-assets",
       "sudo chown -R ubuntu:ubuntu /opt/venvs",
       "python3 -m venv /opt/venvs/py311",
       "sudo chmod 755 /opt/venvs/py311",
@@ -259,27 +260,27 @@ build {
   # Nix flake for reproducible Python envs (base/pro defined inside flake)
   provisioner "file" {
     source      = "nix/flake.nix"
-    destination = "/tmp/flake.nix"
+    destination = "/home/ubuntu/packer-assets/flake.nix"
   }
   provisioner "file" {
     source      = "scripts/spark-java.sh"
-    destination = "/tmp/spark-java.sh"
+    destination = "/home/ubuntu/packer-assets/spark-java.sh"
   }
   provisioner "file" {
     source      = "scripts/build-base-envs.sh"
-    destination = "/tmp/build-base-envs.sh"
+    destination = "/home/ubuntu/packer-assets/build-base-envs.sh"
   }
   provisioner "file" {
     source      = "scripts/ami-scan.sh"
-    destination = "/tmp/ami-scan.sh"
+    destination = "/home/ubuntu/packer-assets/ami-scan.sh"
   }
   provisioner "file" {
     source      = "examples/pyspark_basic.py"
-    destination = "/tmp/pyspark_basic.py"
+    destination = "/home/ubuntu/packer-assets/pyspark_basic.py"
   }
   provisioner "file" {
     source      = "examples/pyspark_pi.py"
-    destination = "/tmp/pyspark_pi.py"
+    destination = "/home/ubuntu/packer-assets/pyspark_pi.py"
   }
   # Removed jupyterlab/onnxserve: no systemd units or user-data copied
   provisioner "file" {
@@ -294,8 +295,8 @@ build {
     inline = [
       "sudo systemctl daemon-reload",
       "sudo bash /tmp/harden.sh",
-      "test -f /tmp/spark-java.sh && sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
-      "test -f /tmp/ami-scan.sh && sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
+      "test -f /home/ubuntu/packer-assets/spark-java.sh && sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
+      "test -f /home/ubuntu/packer-assets/ami-scan.sh && sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
       # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
       "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
     ]
@@ -309,14 +310,14 @@ build {
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo mkdir -p /opt/nix/flake",
-      "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
+      "sudo mv /home/ubuntu/packer-assets/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
       # Configure Cachix binary cache to speed up Nix builds
       "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
-      "sudo bash /tmp/build-base-envs.sh",
+      "sudo bash /home/ubuntu/packer-assets/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
-      "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
-      "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
+      "sudo mv /home/ubuntu/packer-assets/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
+      "sudo mv /home/ubuntu/packer-assets/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
       "sudo chmod 0644 /usr/share/examples/spark/pyspark_*.py",
       # Smoke tests: fail fast if any runtime is missing
       "nix --version",
@@ -464,6 +465,7 @@ build {
       "sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
       "sudo sshd -t && sudo systemctl reload ssh || true",
       "sudo mkdir -p /opt/venvs /usr/share",
+      "mkdir -p /home/ubuntu/packer-assets",
       "sudo chown -R ubuntu:ubuntu /opt/venvs",
       "python3 -m venv /opt/venvs/py311",
       "sudo chmod 755 /opt/venvs/py311",
@@ -486,27 +488,27 @@ build {
 
   provisioner "file" {
     source      = "nix/flake.nix"
-    destination = "/tmp/flake.nix"
+    destination = "/home/ubuntu/packer-assets/flake.nix"
   }
   provisioner "file" {
     source      = "scripts/spark-java.sh"
-    destination = "/tmp/spark-java.sh"
+    destination = "/home/ubuntu/packer-assets/spark-java.sh"
   }
   provisioner "file" {
     source      = "scripts/build-base-envs.sh"
-    destination = "/tmp/build-base-envs.sh"
+    destination = "/home/ubuntu/packer-assets/build-base-envs.sh"
   }
   provisioner "file" {
     source      = "scripts/ami-scan.sh"
-    destination = "/tmp/ami-scan.sh"
+    destination = "/home/ubuntu/packer-assets/ami-scan.sh"
   }
   provisioner "file" {
     source      = "examples/pyspark_basic.py"
-    destination = "/tmp/pyspark_basic.py"
+    destination = "/home/ubuntu/packer-assets/pyspark_basic.py"
   }
   provisioner "file" {
     source      = "examples/pyspark_pi.py"
-    destination = "/tmp/pyspark_pi.py"
+    destination = "/home/ubuntu/packer-assets/pyspark_pi.py"
   }
   provisioner "file" {
     source      = "harden.sh"
@@ -520,8 +522,8 @@ build {
     inline = [
       "sudo systemctl daemon-reload",
       "sudo bash /tmp/harden.sh",
-      "sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh",
-      "sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan",
+      "sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh",
+      "sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan",
       "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
     ]
   }
@@ -532,14 +534,14 @@ build {
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo mkdir -p /opt/nix/flake",
-      "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
+      "sudo mv /home/ubuntu/packer-assets/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
       # Configure Cachix binary cache to speed up Nix builds
       "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
-      "sudo bash /tmp/build-base-envs.sh",
+      "sudo bash /home/ubuntu/packer-assets/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
-      "sudo mv /tmp/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
-      "sudo mv /tmp/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
+      "sudo mv /home/ubuntu/packer-assets/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
+      "sudo mv /home/ubuntu/packer-assets/pyspark_pi.py /usr/share/examples/spark/pyspark_pi.py",
       "sudo chmod 0644 /usr/share/examples/spark/pyspark_*.py",
       "nix --version",
       "/usr/local/bin/py311 -V",
