@@ -290,8 +290,11 @@ build {
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /home/ubuntu/packer-assets/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
-      # Configure Cachix binary cache to speed up Nix builds
-      "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
+      # Configure Cachix binary cache — add substituters + trusted public keys so
+      # Nix actually fetches from cache instead of rebuilding from source.
+      "echo 'extra-substituters = https://cpu-ds-ml.cachix.org https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
+      "echo 'trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cpu-ds-ml.cachix.org-1:RQU8R11xfczT+AV5+UOJIBinRTQIbFhpn9qmk7f/QbY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCUSeBc=' | sudo tee -a /etc/nix/nix.conf",
+      "sudo systemctl restart nix-daemon",
       "sudo bash /home/ubuntu/packer-assets/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
       "sudo mv /home/ubuntu/packer-assets/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
@@ -514,8 +517,11 @@ build {
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /home/ubuntu/packer-assets/flake.nix /opt/nix/flake/flake.nix",
       "sudo bash -lc 'source /etc/profile.d/nix.sh && nix --extra-experimental-features nix-command --extra-experimental-features flakes flake lock /opt/nix/flake'",
-      # Configure Cachix binary cache to speed up Nix builds
-      "echo 'substituters = https://cpu-ds-ml.cachix.org https://cache.nixos.org/ https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
+      # Configure Cachix binary cache — add substituters + trusted public keys so
+      # Nix actually fetches from cache instead of rebuilding from source.
+      "echo 'extra-substituters = https://cpu-ds-ml.cachix.org https://nix-community.cachix.org' | sudo tee -a /etc/nix/nix.conf",
+      "echo 'trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cpu-ds-ml.cachix.org-1:RQU8R11xfczT+AV5+UOJIBinRTQIbFhpn9qmk7f/QbY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCUSeBc=' | sudo tee -a /etc/nix/nix.conf",
+      "sudo systemctl restart nix-daemon",
       "sudo bash /home/ubuntu/packer-assets/build-base-envs.sh",
       "sudo install -d -m 0755 /usr/share/examples/spark",
       "sudo mv /home/ubuntu/packer-assets/pyspark_basic.py /usr/share/examples/spark/pyspark_basic.py",
