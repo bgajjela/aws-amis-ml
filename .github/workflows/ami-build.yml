@@ -1202,7 +1202,6 @@ jobs:
     name: Terminate orphaned test instances
     needs: [test-x86-base, test-x86-pro, test-arm-base, test-arm-pro]
     if: always()
-    environment: production
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
