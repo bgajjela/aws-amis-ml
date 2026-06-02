@@ -91,20 +91,21 @@ _layer_base() {
   sudo "${cache_env}/bin/python" -m venv --system-site-packages "${final_env}"
   sudo "${final_env}/bin/pip" install --upgrade pip --quiet
 
-  echo "  [${label}] jupyterlab + vision/runtime wheels..."
+  echo "  [${label}] jupyterlab + vision/runtime + polars wheels..."
   sudo "${final_env}/bin/pip" install \
     jupyterlab \
     onnxruntime \
     opencv-python \
     scikit-image \
+    polars \
     --quiet
 
   echo "  [${label}] smoke test..."
   "${final_env}/bin/python" -c "
-import numpy, pandas, pyspark, sklearn
+import numpy, pandas, pyspark, sklearn, polars
 import jupyterlab, onnxruntime, cv2, skimage
-print('  numpy=' + numpy.__version__ + ' jupyterlab=' + jupyterlab.__version__ + \
-      ' onnxruntime=' + onnxruntime.__version__ + ' cv2=' + cv2.__version__)
+print('  numpy=' + numpy.__version__ + ' polars=' + polars.__version__ + \
+      ' jupyterlab=' + jupyterlab.__version__ + ' onnxruntime=' + onnxruntime.__version__)
 "
   echo "=== [${label}] DONE ==="
 }

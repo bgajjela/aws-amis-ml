@@ -313,7 +313,7 @@ build {
       "rustc --version",
       "cargo --version",
       "node --version",
-      "echo VERSION=1.0.0-BASE | sudo tee /usr/share/BUILD_INFO",
+      "sudo mkdir -p /usr/share/BUILD_INFO && echo VERSION=1.0.0-BASE | sudo tee /usr/share/BUILD_INFO/version",
     ]
   }
 
@@ -398,7 +398,7 @@ build {
       "/usr/local/bin/py313 -V",
       "java -version",
       "spark-submit --version",
-      "echo VERSION=1.0.0-PRO | sudo tee /usr/share/BUILD_INFO",
+      "sudo mkdir -p /usr/share/BUILD_INFO && echo VERSION=1.0.0-PRO | sudo tee /usr/share/BUILD_INFO/version",
     ]
   }
 
@@ -536,7 +536,7 @@ build {
       "rustc --version",
       "cargo --version",
       "node --version",
-      "echo VERSION=1.0.0-BASE-ARM64 | sudo tee /usr/share/BUILD_INFO",
+      "sudo mkdir -p /usr/share/BUILD_INFO && echo VERSION=1.0.0-BASE-ARM64 | sudo tee /usr/share/BUILD_INFO/version",
     ]
   }
 
@@ -604,7 +604,7 @@ build {
       "/usr/local/bin/py313 -V",
       "java -version",
       "spark-submit --version",
-      "echo VERSION=1.0.0-PRO-ARM64 | sudo tee /usr/share/BUILD_INFO",
+      "sudo mkdir -p /usr/share/BUILD_INFO && echo VERSION=1.0.0-PRO-ARM64 | sudo tee /usr/share/BUILD_INFO/version",
     ]
   }
 

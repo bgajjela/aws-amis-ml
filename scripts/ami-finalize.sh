@@ -252,7 +252,7 @@ sudo chmod 644 /usr/share/BUILD_INFO/EAR-classification.txt
 # ==============================
 sudo tee /etc/update-motd.d/99-ami-notice >/dev/null <<'EOF'
 #!/bin/sh
-BUILD=$(cat /usr/share/BUILD_INFO 2>/dev/null || echo unknown)
+BUILD=$(cat /usr/share/BUILD_INFO/version 2>/dev/null || echo unknown)
 cat <<NOTICE
 
  +------------------------------------------------------------+

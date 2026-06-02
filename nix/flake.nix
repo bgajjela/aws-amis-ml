@@ -118,7 +118,8 @@
             matplotlib
             seaborn
             pyarrow
-            polars
+            # polars: Rust compilation OOMs on c6i.xlarge (8GB RAM).
+            # Installed via pip wheel in build-base-envs.sh instead.
             pillow
             fastapi
             uvicorn
