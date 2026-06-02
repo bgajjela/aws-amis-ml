@@ -282,31 +282,9 @@ build {
     source      = "examples/pyspark_pi.py"
     destination = "/home/ubuntu/packer-assets/pyspark_pi.py"
   }
-  # Removed jupyterlab/onnxserve: no systemd units or user-data copied
-  provisioner "file" {
-    source      = "harden.sh"
-    destination = "/tmp/harden.sh"
-  }
-
+  # Build all Nix envs + language toolchains BEFORE hardening so /tmp is still
+  # exec-able for Nix sandbox operations. Harden runs after to lock down the image.
   provisioner "shell" {
-    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
-    # bash so the interpreter reads it (no exec() on the noexec file).
-    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
-    inline = [
-      "sudo systemctl daemon-reload",
-      "sudo bash /tmp/harden.sh",
-      "test -f /home/ubuntu/packer-assets/spark-java.sh && sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
-      "test -f /home/ubuntu/packer-assets/ami-scan.sh && sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
-      # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
-      "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
-    ]
-  }
-
-  # Build all Nix envs + language toolchains in parallel (~6-10 min vs ~25-30 min sequential).
-  # All packages pull from cache.nixos.org binary cache so builds are mostly download-bound.
-  provisioner "shell" {
-    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
-    # bash so the interpreter reads it (no exec() on the noexec file).
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo mkdir -p /opt/nix/flake",
@@ -336,6 +314,25 @@ build {
       "cargo --version",
       "node --version",
       "echo VERSION=1.0.0-BASE | sudo tee /usr/share/BUILD_INFO",
+    ]
+  }
+
+  # CIS hardening — runs AFTER Nix builds so /tmp noexec does not block Nix sandbox.
+  # The tmp.mount unit is enabled here (not started); it activates on the next boot,
+  # so every instance launched from this AMI runs with a hardened /tmp.
+  provisioner "file" {
+    source      = "harden.sh"
+    destination = "/tmp/harden.sh"
+  }
+  provisioner "shell" {
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
+    inline = [
+      "sudo systemctl daemon-reload",
+      "sudo bash /tmp/harden.sh",
+      "test -f /home/ubuntu/packer-assets/spark-java.sh && sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
+      "test -f /home/ubuntu/packer-assets/ami-scan.sh && sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
+      # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
+      "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
     ]
   }
 
@@ -510,27 +507,8 @@ build {
     source      = "examples/pyspark_pi.py"
     destination = "/home/ubuntu/packer-assets/pyspark_pi.py"
   }
-  provisioner "file" {
-    source      = "harden.sh"
-    destination = "/tmp/harden.sh"
-  }
-
+  # Build Nix envs BEFORE hardening — same rationale as x86 base build.
   provisioner "shell" {
-    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
-    # bash so the interpreter reads it (no exec() on the noexec file).
-    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
-    inline = [
-      "sudo systemctl daemon-reload",
-      "sudo bash /tmp/harden.sh",
-      "sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh",
-      "sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan",
-      "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
-    ]
-  }
-
-  provisioner "shell" {
-    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
-    # bash so the interpreter reads it (no exec() on the noexec file).
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo mkdir -p /opt/nix/flake",
@@ -562,6 +540,22 @@ build {
     ]
   }
 
+  # CIS hardening — runs AFTER Nix builds so /tmp noexec does not block Nix sandbox.
+  provisioner "file" {
+    source      = "harden.sh"
+    destination = "/tmp/harden.sh"
+  }
+  provisioner "shell" {
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
+    inline = [
+      "sudo systemctl daemon-reload",
+      "sudo bash /tmp/harden.sh",
+      "sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh",
+      "sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan",
+      "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
+    ]
+  }
+
   provisioner "file" {
     source      = "scripts/ami-finalize.sh"
     destination = "/tmp/ami-finalize.sh"
@@ -571,8 +565,6 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
-    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
-    # bash so the interpreter reads it (no exec() on the noexec file).
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh base"]
   }
