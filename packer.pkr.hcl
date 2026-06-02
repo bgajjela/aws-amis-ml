@@ -283,6 +283,7 @@ build {
 
   provisioner "shell" {
     inline = [
+      "sudo chmod +x /tmp/*.sh",
       "sudo chmod +x /tmp/harden.sh",
       "sudo systemctl daemon-reload",
       "sudo /tmp/harden.sh",
