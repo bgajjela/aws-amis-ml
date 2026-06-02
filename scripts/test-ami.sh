@@ -34,9 +34,9 @@ cleanup() {
     aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID" --region "$REGION" \
       --cli-read-timeout 120 2>/dev/null || true
   fi
-  aws ec2 delete-key-pair --key-name "$KEY_NAME" --region "$REGION" 2>/dev/null || true
+  aws ec2 delete-key-pair --key-name "$KEY_NAME" --region "$REGION" >/dev/null 2>&1 || true
   if [[ -n "$TMP_SG_ID" ]]; then
-    aws ec2 delete-security-group --group-id "$TMP_SG_ID" --region "$REGION" 2>/dev/null || true
+    aws ec2 delete-security-group --group-id "$TMP_SG_ID" --region "$REGION" >/dev/null 2>&1 || true
   fi
   rm -f "$KEY_FILE" "$KNOWN_HOSTS_FILE"
 }
@@ -59,6 +59,7 @@ if ! [[ "$_RAW_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
 fi
 MY_CIDR="${_RAW_IP}/32"
 # Mask sensitive network details in CI logs
+echo "::add-mask::${AMI_ID}"
 echo "::add-mask::${REGION}"
 echo "::add-mask::${VPC_ID}"
 echo "::add-mask::${SUBNET_ID}"
@@ -81,7 +82,7 @@ aws ec2 authorize-security-group-ingress \
 aws ec2 revoke-security-group-egress \
   --group-id "$TMP_SG_ID" --region "$REGION" \
   --ip-permissions '[{"IpProtocol":"-1","IpRanges":[{"CidrIp":"0.0.0.0/0"}]}]' \
-  2>/dev/null || true
+  >/dev/null 2>&1 || true
 aws ec2 authorize-security-group-egress \
   --group-id "$TMP_SG_ID" --protocol tcp --port 443 --cidr 0.0.0.0/0 \
   --region "$REGION" > /dev/null
@@ -105,7 +106,7 @@ else
 fi
 
 # ── Launch ────────────────────────────────────────────────────────────────────
-echo "Launching ${INSTANCE_TYPE} from ${AMI_ID} (arch=${ARCH} tier=${TIER})..."
+echo "Launching ${INSTANCE_TYPE} from selected AMI (arch=${ARCH} tier=${TIER})..."
 INSTANCE_ID=$(aws ec2 run-instances \
   --image-id "$AMI_ID" \
   --instance-type "$INSTANCE_TYPE" \
@@ -117,6 +118,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
   --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=ami-test-${STAMP}},{Key=Purpose,Value=ami-ci-test}]" \
   --region "$REGION" \
   --query 'Instances[0].InstanceId' --output text)
+echo "::add-mask::${INSTANCE_ID}"
 
 echo "Waiting for $INSTANCE_ID to be running..."
 aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$REGION"
@@ -127,7 +129,6 @@ PUBLIC_IP=$(aws ec2 describe-instances \
   --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 # Mask IP and instance ID from CI logs
 echo "::add-mask::${PUBLIC_IP}"
-echo "::add-mask::${INSTANCE_ID}"
 echo "Instance running at ***"
 
 # ── Capture host key, then enforce it for all subsequent SSH connections ───────
@@ -152,6 +153,22 @@ done
 SSH_OPTS="-i ${KEY_FILE} -o StrictHostKeyChecking=yes \
   -o UserKnownHostsFile=${KNOWN_HOSTS_FILE} \
   -o ConnectTimeout=10 -o BatchMode=yes"
+
+# Wait for authenticated SSH, not just an open port/host key.
+echo "Waiting for SSH login readiness..."
+MAX_SSH_RETRIES=18
+for i in $(seq 1 $MAX_SSH_RETRIES); do
+  # shellcheck disable=SC2086
+  if ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" true 2>/dev/null; then
+    break
+  fi
+  if [[ $i -eq $MAX_SSH_RETRIES ]]; then
+    echo "ERROR: SSH login not ready after $((MAX_SSH_RETRIES * 10)) seconds"
+    exit 1
+  fi
+  echo "  ssh retry $i/${MAX_SSH_RETRIES}..."
+  sleep 10
+done
 
 # ── Base runtime verification ─────────────────────────────────────────────────
 echo "=== Base runtime verification ==="
