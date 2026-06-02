@@ -196,6 +196,9 @@ build {
   # but the old kernel remains active — CVE patches that require a new kernel
   # (e.g. CVE-2026-31431) are installed but not yet effective in the AMI.
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo apt-get update",
       # Apply all Ubuntu security patches (OpenSSL, curl, glibc, systemd, etc.) before installing anything
@@ -208,6 +211,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     pause_before = "30s"
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
@@ -282,6 +288,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo systemctl daemon-reload",
       "sudo bash /tmp/harden.sh",
@@ -295,6 +304,9 @@ build {
   # Build all Nix envs + language toolchains in parallel (~6-10 min vs ~25-30 min sequential).
   # All packages pull from cache.nixos.org binary cache so builds are mostly download-bound.
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
@@ -336,6 +348,9 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh base"]
   }
 }
@@ -365,6 +380,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
       # build-pro-envs.sh: venv --system-site-packages on base Nix envs,
@@ -396,6 +414,9 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh pro"]
   }
 }
@@ -411,6 +432,9 @@ build {
   sources = ["source.amazon-ebs.ubuntu_arm_base"]
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo apt-get update",
       "sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y",
@@ -420,6 +444,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     pause_before = "30s"
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
@@ -487,6 +514,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo systemctl daemon-reload",
       "sudo bash /tmp/harden.sh",
@@ -497,6 +527,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo mkdir -p /opt/nix/flake",
       "sudo mv /tmp/flake.nix /opt/nix/flake/flake.nix",
@@ -536,6 +569,9 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh base"]
   }
 }
@@ -561,6 +597,9 @@ build {
   }
 
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
       "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
       "sudo bash /tmp/build-pro-envs.sh",
@@ -584,6 +623,9 @@ build {
     destination = "/tmp/SECURITY.md"
   }
   provisioner "shell" {
+    # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
+    # bash so the interpreter reads it (no exec() on the noexec file).
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh pro"]
   }
 }

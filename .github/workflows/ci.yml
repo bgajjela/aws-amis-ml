@@ -56,6 +56,23 @@ jobs:
             scripts/spark-java.sh \
             scripts/test-ami.sh
 
+      - name: Bash syntax check
+        run: |
+          set -e
+          for script in \
+            harden.sh \
+            scripts/ami-finalize.sh \
+            scripts/ami-scan.sh \
+            scripts/build-base-envs.sh \
+            scripts/build-pro-envs.sh \
+            scripts/tune-pro.sh \
+            scripts/smoke-pro.sh \
+            scripts/spark-java.sh \
+            scripts/test-ami.sh; do
+            bash -n "$script"
+            echo "✓ $script"
+          done
+
       - name: Validate Packer provisioner scripts
         run: |
           echo "Validating Packer provisioner scripts..."
@@ -85,6 +102,44 @@ jobs:
           fi
 
           echo "✓ All provisioner scripts valid"
+
+      - name: Guard — noexec /tmp requires execute_command on every shell provisioner
+        run: |
+          # ROOT-CAUSE GUARD (see local noexec simulation).
+          # harden.sh mounts /tmp as a noexec tmpfs, and the build reboots into it.
+          # After that, Packer's DEFAULT execute_command ("chmod +x {{.Path}}; {{.Path}}")
+          # exec's its uploaded wrapper BY PATH on the noexec /tmp -> exit 126.
+          # bash -n can never catch this; it is a structural invariant, so we assert it.
+          echo "Checking noexec-/tmp invariant on packer.pkr.hcl..."
+
+          reboots=$(grep -c 'sudo reboot' packer.pkr.hcl || true)
+          hardens_tmp=$(grep -cE 'Where=/tmp' harden.sh || true)
+          shell_prov=$(grep -c 'provisioner "shell"' packer.pkr.hcl || true)
+          exec_cmds=$(grep -c 'execute_command' packer.pkr.hcl || true)
+
+          echo "  reboots=$reboots  noexec-/tmp-in-harden=$hardens_tmp"
+          echo "  shell provisioners=$shell_prov  execute_command overrides=$exec_cmds"
+
+          # Only enforce when the build actually creates a noexec /tmp and reboots into it.
+          if [ "$reboots" -ge 1 ] && [ "$hardens_tmp" -ge 1 ]; then
+            if [ "$exec_cmds" -lt "$shell_prov" ]; then
+              echo "❌ ERROR: $shell_prov shell provisioners but only $exec_cmds execute_command overrides."
+              echo "   On a noexec /tmp, every shell provisioner MUST set:"
+              echo "     execute_command = \"chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}\""
+              echo "   Otherwise Packer exec's its wrapper by path and fails with exit 126."
+              exit 1
+            fi
+
+            # Each override must invoke the interpreter (bash {{ .Path }}), not exec-by-path.
+            bad=$(grep -E 'execute_command' packer.pkr.hcl | grep -vc 'bash {{ .Path }}' || true)
+            if [ "$bad" -gt 0 ]; then
+              echo "❌ ERROR: $bad execute_command line(s) do not run via 'bash {{ .Path }}'."
+              echo "   noexec /tmp blocks exec-by-path; the wrapper must be read by bash."
+              exit 1
+            fi
+          fi
+
+          echo "✓ noexec-/tmp invariant satisfied (all $shell_prov shell provisioners run via bash)"
 
       - name: CIS compliance check
         run: bash tests/cis-check.sh
