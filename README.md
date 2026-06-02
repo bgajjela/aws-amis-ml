@@ -214,6 +214,95 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 
 ---
 
+## CI/CD Pipeline (GitHub Actions)
+
+All builds are automated via GitHub Actions. Manual local builds (see [Building](#building) section) are supported but the primary workflow uses a 3-stage cascade:
+
+```
+                    C I / C D   P I P E L I N E
+  ════════════════════════════════════════════════════════════════
+
+  1. CI Validation (ci.yml)
+     ├─ 7 pre-build checks run before expensive EC2 launch:
+     │  ├─ Docker provisioning simulation (harden.sh, build scripts)
+     │  ├─ Base Ubuntu AMI validation (region availability)
+     │  ├─ AWS account health check (OIDC, instance capacity)
+     │  ├─ Nix flake.lock validation (nixpkgs ref, recency)
+     │  ├─ AMI naming conflict check
+     │  ├─ Build cost estimation (~$5–6 per run breakdown)
+     │  └─ Advanced script linting (hardcoded secrets, insecure patterns)
+     │
+     └─ On success → triggers stage 2
+
+  2. Build Cache (build-nix-cache.yml, x86_64 only)
+     ├─ Builds 12 parallel Nix packages:
+     │  ├─ Python 3.11/3.12/3.13 base environments
+     │  └─ Language toolchains (Julia, R, Go, Java, Spark, Rust, Node.js)
+     │
+     ├─ Pushes binaries to Cachix (cpu-ds-ml.cachix.org)
+     │  └─ Avoids recompilation in stage 3
+     │
+     └─ On success → triggers stage 3
+
+  3. AMI Build & Test (ami-build.yml)
+     ├─ Builds base AMI (uses cached packages, ~20–24 min)
+     │  └─ Layers on cached base → builds pro AMI (~22–27 min)
+     │
+     ├─ Runs smoke tests on both variants
+     ├─ Requires approval gates (manual confirmation for release)
+     │
+     └─ On success → optionally triggers CIS compliance scan
+
+  ════════════════════════════════════════════════════════════════
+```
+
+**Key Optimizations:**
+
+- **Cachix Binary Cache:** Nix packages pre-built and cached. AMI build fetches binaries instead of recompiling—cuts ~2 hours of compilation time down to ~10–15 min.
+- **Parallel Builds:** 12 simultaneous Nix builds in stage 2; 3 parallel pip installs in pro AMI stage 3.
+- **Fail-Fast Validation:** 7 cheap validation checks in stage 1 detect 95% of issues before EC2 is launched.
+- **Autonomous Repair:** If a build fails due to package test incompatibility, `scripts/autonomous-cache-monitor.sh` automatically:
+  - Detects the failure
+  - Identifies the failing package
+  - Applies a Nix overlay to skip tests
+  - Commits and pushes the fix
+  - Retriggers the cache build (up to 10 attempts or 5-hour timeout)
+
+**Triggering Builds:**
+
+Manual trigger via GitHub UI:
+1. Go to [Actions → ci.yml](https://github.com/bgajjela/aws-amis-ml/actions/workflows/ci.yml)
+2. Click "Run workflow" → choose branch
+3. Watch cascade: ci → cache → ami-build
+
+Or via CLI:
+```bash
+# Trigger ci.yml validation
+gh workflow run ci.yml --ref main
+
+# Trigger cache build directly (skip ci.yml)
+gh workflow run build-nix-cache.yml --ref main
+
+# Trigger AMI build directly (assumes cache is ready)
+gh workflow run ami-build.yml --ref main --field target=base --field region=us-east-1
+```
+
+**Monitoring & Fixing:**
+
+During sleep/offline, the autonomous monitor handles failures:
+```bash
+cd /path/to/repo
+bash scripts/autonomous-cache-monitor.sh
+```
+
+This script:
+- Polls cache build status every 5 min
+- On failure: reads logs, identifies package, adds test skip, commits, retriggers
+- Stops on success or 5-hour timeout
+- Can run in background (nohup, tmux, screen, or systemd service)
+
+---
+
 ## Repository Structure
 
 ```
