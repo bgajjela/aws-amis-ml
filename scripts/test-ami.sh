@@ -60,10 +60,12 @@ fi
 MY_CIDR="${_RAW_IP}/32"
 # Mask sensitive network details in CI logs
 echo "::add-mask::${AMI_ID}"
+echo "::add-mask::${_RAW_IP}"
+echo "::add-mask::${MY_CIDR}"
 echo "::add-mask::${REGION}"
 echo "::add-mask::${VPC_ID}"
 echo "::add-mask::${SUBNET_ID}"
-echo "Runner IP: $MY_CIDR"
+echo "Runner IP: ***"
 
 # ── Temp security group (SSH in from runner only; restricted egress) ──────────
 TMP_SG_ID=$(aws ec2 create-security-group \
@@ -154,20 +156,26 @@ SSH_OPTS="-i ${KEY_FILE} -o StrictHostKeyChecking=yes \
   -o UserKnownHostsFile=${KNOWN_HOSTS_FILE} \
   -o ConnectTimeout=10 -o BatchMode=yes"
 
-# Wait for authenticated SSH, not just an open port/host key.
+# Give cloud-init time to finish installing the EC2 key before we attempt
+# authenticated SSH against a hardened image with fail2ban enabled.
+echo "Waiting for cloud-init SSH key setup..."
+sleep 60
+
+# Wait for authenticated SSH, not just an open port/host key. Keep retry count
+# below the fail2ban maxretry threshold used by the hardened AMI.
 echo "Waiting for SSH login readiness..."
-MAX_SSH_RETRIES=18
+MAX_SSH_RETRIES=4
 for i in $(seq 1 $MAX_SSH_RETRIES); do
   # shellcheck disable=SC2086
   if ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" true 2>/dev/null; then
     break
   fi
   if [[ $i -eq $MAX_SSH_RETRIES ]]; then
-    echo "ERROR: SSH login not ready after $((MAX_SSH_RETRIES * 10)) seconds"
+    echo "ERROR: SSH login not ready after $((60 + (MAX_SSH_RETRIES * 30))) seconds"
     exit 1
   fi
   echo "  ssh retry $i/${MAX_SSH_RETRIES}..."
-  sleep 10
+  sleep 30
 done
 
 # ── Base runtime verification ─────────────────────────────────────────────────
