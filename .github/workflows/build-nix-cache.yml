@@ -95,9 +95,9 @@ jobs:
 
       - name: Smoke test Python cache environments
         run: |
-          /tmp/py-cache-base/bin/python -c "import ipython, pyspark; print('py311 cache ok')"
-          /tmp/py-cache-base-py312/bin/python -c "import ipython, pyspark; print('py312 cache ok')"
-          /tmp/py-cache-base-py313/bin/python -c "import ipython, pyspark; print('py313 cache ok')"
+          /tmp/py-cache-base/bin/python -c "import IPython, pyspark; print('py311 cache ok')"
+          /tmp/py-cache-base-py312/bin/python -c "import IPython, pyspark; print('py312 cache ok')"
+          /tmp/py-cache-base-py313/bin/python -c "import IPython, pyspark; print('py313 cache ok')"
 
       - name: Smoke test language toolchains
         run: |
