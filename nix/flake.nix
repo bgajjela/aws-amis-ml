@@ -105,35 +105,18 @@
 
           mkPyEnv = python: pkgsFn: python.withPackages pkgsFn;
 
-          # Core packages for cache warmup. Keep this focused on the stack that
-          # benefits most from Nix binary caching and avoids the heaviest
-          # computer-vision / notebook extras that make hosted-runner warmup
-          # unacceptably slow.
+          # Minimal Nix-managed base: only packages that need deep system
+          # integration (Java/Spark wiring) or are the Python base itself.
+          # Everything else is installed via pip wheel in build-base-envs.sh
+          # which is faster, better-optimized, and avoids Nix compilation OOMs.
           cachePackagesFn = ps: with ps; [
-            ipython
-            numpy
-            scipy
-            pandas
-            scikitlearn
-            matplotlib
-            seaborn
-            pyarrow
-            # polars: Rust compilation OOMs on c6i.xlarge (8GB RAM).
-            # Installed via pip wheel in build-base-envs.sh instead.
-            pillow
-            fastapi
-            uvicorn
-            pyspark
+            ipython   # lightweight interpreter base
+            pyspark   # needs Nix Java/Spark runtime wiring
           ];
 
-          # Full base env used by the AMI. This stays broader than the cache
-          # warmup target so base image functionality is preserved.
-          basePackagesFn = ps: cachePackagesFn ps ++ (with ps; [
-            jupyterlab
-            onnxruntime
-            opencv4
-            scikit-image
-          ]);
+          # basePackagesFn = cachePackagesFn — all heavy packages now via pip.
+          # See build-base-envs.sh _layer_base() for the full pip install list.
+          basePackagesFn = ps: cachePackagesFn ps;
 
           # catboost: not in nixpkgs (complex Rust build). pip install catboost
           # torch/torchvision/torchaudio/tensorflow/transformers/datasets/tokenizers/

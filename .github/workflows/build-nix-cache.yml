@@ -29,8 +29,6 @@ jobs:
         run: |
           echo "::add-mask::${{ github.repository }}"
           echo "::add-mask::${{ github.workspace }}"
-          echo "::add-mask::${{ secrets.GITHUB_TOKEN }}"
-          echo "::add-mask::${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Install Nix (x86_64 only)
         uses: cachix/install-nix-action@v30
@@ -97,9 +95,9 @@ jobs:
 
       - name: Smoke test Python cache environments
         run: |
-          /tmp/py-cache-base/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL; print('py311 cache ok')"
-          /tmp/py-cache-base-py312/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL; print('py312 cache ok')"
-          /tmp/py-cache-base-py313/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL; print('py313 cache ok')"
+          /tmp/py-cache-base/bin/python -c "import ipython, pyspark; print('py311 cache ok')"
+          /tmp/py-cache-base-py312/bin/python -c "import ipython, pyspark; print('py312 cache ok')"
+          /tmp/py-cache-base-py313/bin/python -c "import ipython, pyspark; print('py313 cache ok')"
 
       - name: Smoke test language toolchains
         run: |
