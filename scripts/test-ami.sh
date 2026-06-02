@@ -67,7 +67,7 @@ echo "Runner IP: $MY_CIDR"
 # ── Temp security group (SSH in from runner only; restricted egress) ──────────
 TMP_SG_ID=$(aws ec2 create-security-group \
   --group-name "ami-test-${STAMP}" \
-  --description "Ephemeral AMI test SG — auto-deleted after test run" \
+  --description "Ephemeral AMI test SG - auto-deleted after test run" \
   --vpc-id "$VPC_ID" --region "$REGION" \
   --query 'GroupId' --output text)
 echo "::add-mask::${TMP_SG_ID}"
