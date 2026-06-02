@@ -51,6 +51,9 @@ on:
       region:
         description: 'AWS region'
         default: us-east-1
+      existing_x86_base_ami_id:
+        description: 'Optional existing x86 base AMI ID to test/reuse instead of rebuilding base'
+        default: ''
       version_tag:
         description: 'Release tag to apply to built AMIs (e.g. v1.0.1)'
         default: ''
@@ -148,7 +151,7 @@ jobs:
     name: Build x86 base AMI
     needs: validate
     environment: production
-    if: success() && contains(fromJSON('["all","base","pro"]'), github.event.inputs.target)
+    if: success() && contains(fromJSON('["all","base","pro"]'), github.event.inputs.target) && github.event.inputs.existing_x86_base_ami_id == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 75
     outputs:
@@ -280,7 +283,6 @@ jobs:
             exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
-          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -294,8 +296,16 @@ jobs:
 
   test-x86-base:
     name: Test x86 base AMI
-    needs: build-x86-base
+    needs: [validate, build-x86-base]
     environment: production
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      contains(fromJSON('["all","base","pro"]'), github.event.inputs.target) &&
+      (
+        github.event.inputs.existing_x86_base_ami_id != '' ||
+        needs.build-x86-base.result == 'success'
+      )
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -362,14 +372,23 @@ jobs:
       - name: Run AMI tests — x86 base
         run: |
           chmod +x scripts/test-ami.sh
+          AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID="${{ needs.build-x86-base.outputs.ami_id }}"
+          fi
           scripts/test-ami.sh \
-            "${{ needs.build-x86-base.outputs.ami_id }}" \
+            "${AMI_ID}" \
             x86_64 \
             base
 
       - name: Pass AMI ID to tag job
         id: passthrough
-        run: echo "ami_id=${{ needs.build-x86-base.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+        run: |
+          AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID="${{ needs.build-x86-base.outputs.ami_id }}"
+          fi
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
 # ── x86 pro ─────────────────────────────────────────────────────────────────
   build-x86-pro:
@@ -509,7 +528,6 @@ jobs:
             exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
-          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -737,7 +755,6 @@ jobs:
             exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
-          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -966,7 +983,6 @@ jobs:
             exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
-          echo "::add-mask::${AMI_ID}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -1203,6 +1219,7 @@ jobs:
     needs: [test-x86-base, test-x86-pro, test-arm-base, test-arm-pro]
     if: always()
     runs-on: ubuntu-22.04
+    environment: production
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
