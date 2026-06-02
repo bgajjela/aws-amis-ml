@@ -1203,7 +1203,6 @@ jobs:
     needs: [test-x86-base, test-x86-pro, test-arm-base, test-arm-pro]
     if: always()
     runs-on: ubuntu-22.04
-    environment: production
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
