@@ -56,6 +56,36 @@ jobs:
             scripts/spark-java.sh \
             scripts/test-ami.sh
 
+      - name: Validate Packer provisioner scripts
+        run: |
+          echo "Validating Packer provisioner scripts..."
+          packer_scripts=$(grep -o 'source.*=.*"[^"]*\.sh"' packer.pkr.hcl | cut -d'"' -f2 | sort -u)
+
+          for script in $packer_scripts; do
+            if [ ! -f "$script" ]; then
+              echo "❌ MISSING script in packer.pkr.hcl: $script"
+              exit 1
+            fi
+
+            # Validate bash syntax
+            if ! bash -n "$script" 2>/dev/null; then
+              echo "❌ SYNTAX ERROR in $script"
+              bash -n "$script"
+              exit 1
+            fi
+
+            echo "✓ $script (syntax valid)"
+          done
+
+          # Verify no direct script execution without bash wrapper
+          if grep -E 'sudo /tmp/[a-z\-]+\.sh["\s]' packer.pkr.hcl; then
+            echo "❌ ERROR: Found direct script execution without 'bash' wrapper"
+            echo "   Use: sudo bash /tmp/script.sh (not: sudo /tmp/script.sh)"
+            exit 1
+          fi
+
+          echo "✓ All provisioner scripts valid"
+
       - name: CIS compliance check
         run: bash tests/cis-check.sh
 
