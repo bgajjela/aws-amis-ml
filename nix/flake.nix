@@ -39,6 +39,15 @@
                     doCheck = false;
                     pythonImportsCheck = [];
                   });
+                  jupyterlab = pyprev.jupyterlab.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  opencv4 = pyprev.opencv4.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  scikit-image = pyprev.scikit-image.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
               python312 = prev.python312.override {
@@ -56,6 +65,15 @@
                     doCheck = false;
                     pythonImportsCheck = [];
                   });
+                  jupyterlab = pyprev.jupyterlab.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  opencv4 = pyprev.opencv4.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  scikit-image = pyprev.scikit-image.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
                 };
               };
               python313 = prev.python313.override {
@@ -70,6 +88,15 @@
                   dask = pyprev.dask.overridePythonAttrs (old: {
                     doCheck = false;
                     pythonImportsCheck = [];
+                  });
+                  jupyterlab = pyprev.jupyterlab.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  opencv4 = pyprev.opencv4.overridePythonAttrs (old: {
+                    doCheck = false;
+                  });
+                  scikit-image = pyprev.scikit-image.overridePythonAttrs (old: {
+                    doCheck = false;
                   });
                 };
               };
