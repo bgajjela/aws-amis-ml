@@ -369,9 +369,9 @@ build {
       "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
       # build-pro-envs.sh: venv --system-site-packages on base Nix envs,
       # then pip install torch/tf/transformers CPU wheels (~15-20 min total)
-      "sudo /tmp/build-pro-envs.sh",
+      "sudo bash /tmp/build-pro-envs.sh",
       # tune-pro.sh: ML-specific kernel + THP + limits tuning (run after envs are built)
-      "sudo /tmp/tune-pro.sh",
+      "sudo bash /tmp/tune-pro.sh",
       # Compute smoke tests: torch matmul+autograd, TF matmul, XGBoost/LightGBM fit,
       # PySpark session — verifies BLAS linkage and framework compute, not just imports.
       # Runs all three Python versions. Aborts the build if any check fails.
@@ -488,9 +488,8 @@ build {
 
   provisioner "shell" {
     inline = [
-      "sudo chmod +x /tmp/harden.sh",
       "sudo systemctl daemon-reload",
-      "sudo /tmp/harden.sh",
+      "sudo bash /tmp/harden.sh",
       "sudo install -m 0644 /tmp/spark-java.sh /etc/profile.d/spark-java.sh",
       "sudo install -m 0755 /tmp/ami-scan.sh /usr/local/bin/ami-scan",
       "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
@@ -564,8 +563,8 @@ build {
   provisioner "shell" {
     inline = [
       "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
-      "sudo /tmp/build-pro-envs.sh",
-      "sudo /tmp/tune-pro.sh",
+      "sudo bash /tmp/build-pro-envs.sh",
+      "sudo bash /tmp/tune-pro.sh",
       "/tmp/smoke-pro.sh",
       "/usr/local/bin/py311 -V",
       "/usr/local/bin/py312 -V",
