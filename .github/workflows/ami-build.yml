@@ -254,7 +254,7 @@ jobs:
       - name: Packer build — x86 base
         id: packer
         run: |
-          set -o pipefail
+          set +e
           packer init .
           packer build \
             -machine-readable \
@@ -263,15 +263,21 @@ jobs:
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
-            . 2>&1 | tee /tmp/packer-build.log
+            . > /tmp/packer-build.raw.log 2>&1
+          status=$?
 
-          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.raw.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
           if [[ -z "$AMI_ID" ]]; then
             AMI_ID=$(aws ec2 describe-images --owners self \
               --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-base-*" \
               --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
               --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          python3 scripts/sanitize-log.py /tmp/packer-build.raw.log /tmp/packer-build.log
+          cat /tmp/packer-build.log
+          if [[ $status -ne 0 ]]; then
+            exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "::add-mask::${AMI_ID}"
@@ -476,7 +482,7 @@ jobs:
       - name: Packer build — x86 pro
         id: packer
         run: |
-          set -o pipefail
+          set +e
           packer init .
           packer build \
             -machine-readable \
@@ -486,15 +492,21 @@ jobs:
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
-            . 2>&1 | tee /tmp/packer-build.log
+            . > /tmp/packer-build.raw.log 2>&1
+          status=$?
 
-          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.raw.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
           if [[ -z "$AMI_ID" ]]; then
             AMI_ID=$(aws ec2 describe-images --owners self \
               --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-pro-*" \
               --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
               --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          python3 scripts/sanitize-log.py /tmp/packer-build.raw.log /tmp/packer-build.log
+          cat /tmp/packer-build.log
+          if [[ $status -ne 0 ]]; then
+            exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "::add-mask::${AMI_ID}"
@@ -699,7 +711,7 @@ jobs:
       - name: Packer build — ARM64 base
         id: packer
         run: |
-          set -o pipefail
+          set +e
           packer init .
           packer build \
             -machine-readable \
@@ -708,15 +720,21 @@ jobs:
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
-            . 2>&1 | tee /tmp/packer-build.log
+            . > /tmp/packer-build.raw.log 2>&1
+          status=$?
 
-          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.raw.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
           if [[ -z "$AMI_ID" ]]; then
             AMI_ID=$(aws ec2 describe-images --owners self \
               --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-arm64-base-*" \
               --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
               --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          python3 scripts/sanitize-log.py /tmp/packer-build.raw.log /tmp/packer-build.log
+          cat /tmp/packer-build.log
+          if [[ $status -ne 0 ]]; then
+            exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "::add-mask::${AMI_ID}"
@@ -921,7 +939,7 @@ jobs:
       - name: Packer build — ARM64 pro
         id: packer
         run: |
-          set -o pipefail
+          set +e
           packer init .
           packer build \
             -machine-readable \
@@ -931,15 +949,21 @@ jobs:
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
-            . 2>&1 | tee /tmp/packer-build.log
+            . > /tmp/packer-build.raw.log 2>&1
+          status=$?
 
-          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.log \
+          AMI_ID=$(grep ',artifact,0,id,' /tmp/packer-build.raw.log \
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
           if [[ -z "$AMI_ID" ]]; then
             AMI_ID=$(aws ec2 describe-images --owners self \
               --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-arm64-pro-*" \
               --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
               --output text --region "$AWS_DEFAULT_REGION")
+          fi
+          python3 scripts/sanitize-log.py /tmp/packer-build.raw.log /tmp/packer-build.log
+          cat /tmp/packer-build.log
+          if [[ $status -ne 0 ]]; then
+            exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
           echo "::add-mask::${AMI_ID}"

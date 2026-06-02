@@ -169,6 +169,11 @@ echo "--- PySpark imports (all 3 Pythons) ---"
 /usr/local/bin/py312 -c "import pyspark; print('PySpark', pyspark.__version__)"
 /usr/local/bin/py313 -c "import pyspark; print('PySpark', pyspark.__version__)"
 
+echo "--- Layered base-package imports (all 3 Pythons) ---"
+/usr/local/bin/py311 -c "import jupyterlab, onnxruntime, cv2, skimage; print('py311 layered wheels OK')"
+/usr/local/bin/py312 -c "import jupyterlab, onnxruntime, cv2, skimage; print('py312 layered wheels OK')"
+/usr/local/bin/py313 -c "import jupyterlab, onnxruntime, cv2, skimage; print('py313 layered wheels OK')"
+
 echo "--- Java / Spark ---"
 java -version
 spark-submit --version 2>&1 | head -2

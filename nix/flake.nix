@@ -78,7 +78,11 @@
 
           mkPyEnv = python: pkgsFn: python.withPackages pkgsFn;
 
-          basePackagesFn = ps: with ps; [
+          # Core packages for cache warmup. Keep this focused on the stack that
+          # benefits most from Nix binary caching and avoids the heaviest
+          # computer-vision / notebook extras that make hosted-runner warmup
+          # unacceptably slow.
+          cachePackagesFn = ps: with ps; [
             ipython
             numpy
             scipy
@@ -88,15 +92,20 @@
             seaborn
             pyarrow
             polars
-            jupyterlab
-            onnxruntime
-            opencv4
             pillow
-            scikit-image
             fastapi
             uvicorn
             pyspark
           ];
+
+          # Full base env used by the AMI. This stays broader than the cache
+          # warmup target so base image functionality is preserved.
+          basePackagesFn = ps: cachePackagesFn ps ++ (with ps; [
+            jupyterlab
+            onnxruntime
+            opencv4
+            scikit-image
+          ]);
 
           # catboost: not in nixpkgs (complex Rust build). pip install catboost
           # torch/torchvision/torchaudio/tensorflow/transformers/datasets/tokenizers/
@@ -110,10 +119,13 @@
             lightgbm
           ]);
         in {
+          py-cache-base = mkPyEnv pkgs.python311 cachePackagesFn;
           py-base       = mkPyEnv pkgs.python311 basePackagesFn;
           py-pro        = mkPyEnv pkgs.python311 proPackagesFn;
+          py-cache-base-py312 = mkPyEnv pkgs.python312 cachePackagesFn;
           py-base-py312 = mkPyEnv pkgs.python312 basePackagesFn;
           py-pro-py312  = mkPyEnv pkgs.python312 proPackagesFn;
+          py-cache-base-py313 = mkPyEnv pkgs.python313 cachePackagesFn;
           py-base-py313 = mkPyEnv pkgs.python313 basePackagesFn;
           py-pro-py313  = mkPyEnv pkgs.python313 proPackagesFn;
 

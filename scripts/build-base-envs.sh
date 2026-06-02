@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Dimenpoint
-# build-base-envs.sh — parallel Nix builds for all base Python envs and language
-# toolchains.  All packages resolve from cache.nixos.org (binary cache), so each
-# build is mostly download-bound.  Firing them all simultaneously cuts the Nix
-# provisioning phase from ~25-30 min (sequential) to ~6-10 min (parallel).
+# build-base-envs.sh — parallel Nix builds for the cache-friendly core Python
+# envs plus language toolchains, then layered pip-wheel installs for the heavy
+# notebook / computer-vision packages. This keeps the final AMI Python paths
+# unchanged while avoiding very slow Nix closure builds for packages like
+# onnxruntime, OpenCV, and scikit-image.
 set -euo pipefail
 
 FLAKE="/opt/nix/flake"
 ENVS="/opt/nix/envs"
+CACHE_ENVS="/opt/nix/cache-envs"
 LANGS="/opt/nix/langs"
+ARCH="$(uname -m)"
 
-sudo mkdir -p "${ENVS}" "${LANGS}"
+sudo mkdir -p "${ENVS}" "${CACHE_ENVS}" "${LANGS}"
 
 # ── Background helper ─────────────────────────────────────────────────────────
 # Logs per-build to /tmp/nix-<label>.log so output doesn't interleave.
@@ -28,11 +31,11 @@ _nix_bg() {
 }
 
 # ── Launch all builds in parallel ────────────────────────────────────────────
-echo "=== Launching parallel Nix builds ==="
+echo "=== Launching parallel Nix cache builds ==="
 
-_nix_bg "py-base"     "${ENVS}/base"       "py-base"       ; PID_py_base=$!
-_nix_bg "py-base-312" "${ENVS}/base-py312" "py-base-py312" ; PID_py312=$!
-_nix_bg "py-base-313" "${ENVS}/base-py313" "py-base-py313" ; PID_py313=$!
+_nix_bg "py-base"     "${CACHE_ENVS}/base"       "py-cache-base"       ; PID_py_base=$!
+_nix_bg "py-base-312" "${CACHE_ENVS}/base-py312" "py-cache-base-py312" ; PID_py312=$!
+_nix_bg "py-base-313" "${CACHE_ENVS}/base-py313" "py-cache-base-py313" ; PID_py313=$!
 _nix_bg "python313"   "${LANGS}/python313"  "python313"     ; PID_py313_lang=$!
 _nix_bg "julia"       "${LANGS}/julia"      "julia"         ; PID_julia=$!
 _nix_bg "R"           "${LANGS}/R"          "R"             ; PID_R=$!
@@ -76,6 +79,69 @@ _wait "nodejs"      "${PID_nodejs}"
 if [[ "${FAILED}" -ne 0 ]]; then
   echo ""
   echo "ERROR: One or more Nix builds failed (see logs above)."
+  exit 1
+fi
+
+# ── Layer heavy wheels on top of the cached Nix envs ─────────────────────────
+_layer_base() {
+  local label="$1" cache_env="$2" final_env="$3"
+  echo "=== [${label}] layering wheels onto ${final_env} (arch: ${ARCH}) ==="
+
+  sudo rm -rf "${final_env}"
+  sudo "${cache_env}/bin/python" -m venv --system-site-packages "${final_env}"
+  sudo "${final_env}/bin/pip" install --upgrade pip --quiet
+
+  echo "  [${label}] jupyterlab + vision/runtime wheels..."
+  sudo "${final_env}/bin/pip" install \
+    jupyterlab \
+    onnxruntime \
+    opencv-python \
+    scikit-image \
+    --quiet
+
+  echo "  [${label}] smoke test..."
+  "${final_env}/bin/python" -c "
+import numpy, pandas, pyspark, sklearn
+import jupyterlab, onnxruntime, cv2, skimage
+print('  numpy=' + numpy.__version__ + ' jupyterlab=' + jupyterlab.__version__ + \
+      ' onnxruntime=' + onnxruntime.__version__ + ' cv2=' + cv2.__version__)
+"
+  echo "=== [${label}] DONE ==="
+}
+
+echo ""
+echo "=== Layering heavy Python wheels in parallel ==="
+
+_layer_base "py311" "${CACHE_ENVS}/base" /opt/nix/envs/base >"/tmp/base-py311.log" 2>&1 &
+PID_layer_311=$!
+
+_layer_base "py312" "${CACHE_ENVS}/base-py312" /opt/nix/envs/base-py312 >"/tmp/base-py312.log" 2>&1 &
+PID_layer_312=$!
+
+_layer_base "py313" "${CACHE_ENVS}/base-py313" /opt/nix/envs/base-py313 >"/tmp/base-py313.log" 2>&1 &
+PID_layer_313=$!
+
+FAILED_LAYER=0
+
+_wait_layer() {
+  local label="$1" pid="$2" log="$3"
+  if wait "${pid}"; then
+    echo "  [ok]   ${label}"
+    cat "${log}"
+  else
+    echo "  [FAIL] ${label} — log below:"
+    cat "${log}"
+    FAILED_LAYER=1
+  fi
+}
+
+_wait_layer "py311" "${PID_layer_311}" /tmp/base-py311.log
+_wait_layer "py312" "${PID_layer_312}" /tmp/base-py312.log
+_wait_layer "py313" "${PID_layer_313}" /tmp/base-py313.log
+
+if [[ "${FAILED_LAYER}" -ne 0 ]]; then
+  echo ""
+  echo "ERROR: One or more layered base env builds failed (see logs above)."
   exit 1
 fi
 

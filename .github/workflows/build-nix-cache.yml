@@ -36,6 +36,8 @@ jobs:
         run: |
           echo "::add-mask::${{ github.repository }}"
           echo "::add-mask::${{ github.workspace }}"
+          echo "::add-mask::${{ secrets.GITHUB_TOKEN }}"
+          echo "::add-mask::${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Install Nix (x86_64 only)
         uses: cachix/install-nix-action@v30
@@ -43,7 +45,6 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             extra-experimental-features = nix-command flakes
-            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
             system = x86_64-linux
 
       - name: Setup Cachix (binary cache)
@@ -53,39 +54,59 @@ jobs:
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
         continue-on-error: true
 
-      - name: Build Python 3.11 base environment
+      - name: Build Python 3.11 cache environment
         run: |
+          set +e
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
-            -o /tmp/py-base \
-            ./nix#py-base --print-build-logs 2>&1 | tee /tmp/py-base.log
+            -o /tmp/py-cache-base \
+            ./nix#py-cache-base --print-build-logs > /tmp/py-cache-base.raw.log 2>&1
+          status=$?
+          python3 scripts/sanitize-log.py /tmp/py-cache-base.raw.log /tmp/py-cache-base.log
+          cat /tmp/py-cache-base.log
+          exit $status
 
-      - name: Build Python 3.12 base environment
+      - name: Build Python 3.12 cache environment
         run: |
+          set +e
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
-            -o /tmp/py-base-py312 \
-            ./nix#py-base-py312 --print-build-logs 2>&1 | tee /tmp/py-base-py312.log
+            -o /tmp/py-cache-base-py312 \
+            ./nix#py-cache-base-py312 --print-build-logs > /tmp/py-cache-base-py312.raw.log 2>&1
+          status=$?
+          python3 scripts/sanitize-log.py /tmp/py-cache-base-py312.raw.log /tmp/py-cache-base-py312.log
+          cat /tmp/py-cache-base-py312.log
+          exit $status
 
-      - name: Build Python 3.13 base environment
+      - name: Build Python 3.13 cache environment
         run: |
+          set +e
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
-            -o /tmp/py-base-py313 \
-            ./nix#py-base-py313 --print-build-logs 2>&1 | tee /tmp/py-base-py313.log
+            -o /tmp/py-cache-base-py313 \
+            ./nix#py-cache-base-py313 --print-build-logs > /tmp/py-cache-base-py313.raw.log 2>&1
+          status=$?
+          python3 scripts/sanitize-log.py /tmp/py-cache-base-py313.raw.log /tmp/py-cache-base-py313.log
+          cat /tmp/py-cache-base-py313.log
+          exit $status
 
       - name: Build language toolchains (parallel)
         run: |
+          set +e
           nix build --extra-experimental-features nix-command --extra-experimental-features flakes \
             --max-jobs auto --cores 0 \
             ./nix#python313 ./nix#julia ./nix#R ./nix#go ./nix#java ./nix#spark \
-            ./nix#rustc ./nix#cargo ./nix#nodejs --print-build-logs 2>&1 | tee /tmp/langs.log
+            ./nix#rustc ./nix#cargo ./nix#nodejs --print-build-logs > /tmp/langs.raw.log 2>&1
+          status=$?
+          python3 scripts/sanitize-log.py /tmp/langs.raw.log /tmp/langs.log
+          cat /tmp/langs.log
+          exit $status
 
-      - name: Smoke test Python environments
+      - name: Smoke test Python cache environments
         run: |
-          /tmp/py-base/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL, skimage; print('py311 ok')"
-          /tmp/py-base-py312/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL, skimage; print('py312 ok')"
-          /tmp/py-base-py313/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL, skimage; print('py313 ok')"
+          /tmp/py-cache-base/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL; print('py311 cache ok')"
+          /tmp/py-cache-base-py312/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL; print('py312 cache ok')"
+          /tmp/py-cache-base-py313/bin/python -c "import numpy, scipy, pandas, sklearn, pyarrow, polars, fastapi, uvicorn, pyspark, PIL; print('py313 cache ok')"
 
       - name: Smoke test language toolchains
         run: |
@@ -110,7 +131,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nix-build-logs-x86
-          path: /tmp/*.log
+          path: |
+            /tmp/py-cache-base.log
+            /tmp/py-cache-base-py312.log
+            /tmp/py-cache-base-py313.log
+            /tmp/langs.log
           retention-days: 3
 
       - name: Notify on completion
