@@ -141,20 +141,11 @@ jobs:
             -var base_ami_id_arm=ami-00000000000000000 \
             .
 
-  approve-production:
-    name: Approve production access
-    needs: validate
-    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target)
-    runs-on: ubuntu-22.04
-    environment: production
-    steps:
-      - name: Approval granted
-        run: echo "Production environment approved for this run."
-
 # ── ARM64 base ───────────────────────────────────────────────────────────────
   build-arm-base:
     name: Build ARM64 base AMI
-    needs: [validate, approve-production]
+    needs: validate
+    environment: production
     if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 90
@@ -335,7 +326,8 @@ jobs:
 
   guard-arm-base-test-contract:
     name: Guard ARM64 base test contract
-    needs: [validate, approve-production, build-arm-base]
+    needs: [validate, build-arm-base]
+    environment: production
     if: |
       always() &&
       needs.validate.result == 'success' &&
@@ -378,7 +370,8 @@ jobs:
 
   test-arm-base:
     name: Test ARM64 base AMI
-    needs: [validate, approve-production, build-arm-base, guard-arm-base-test-contract]
+    needs: [validate, build-arm-base, guard-arm-base-test-contract]
+    environment: production
     if: |
       always() &&
       needs.validate.result == 'success' &&
@@ -466,6 +459,7 @@ jobs:
   build-arm-pro:
     name: Build ARM64 pro AMI
     needs: test-arm-base
+    environment: production
     if: success() && contains(fromJSON('["pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 90
@@ -641,6 +635,7 @@ jobs:
   test-arm-pro:
     name: Test ARM64 pro AMI
     needs: build-arm-pro
+    environment: production
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -720,6 +715,7 @@ jobs:
   tag-release:
     name: Tag AMIs with release version
     needs: [test-arm-base, test-arm-pro]
+    environment: production
     if: |
       always() &&
       github.event.inputs.version_tag != '' &&
@@ -860,6 +856,7 @@ jobs:
         needs.test-arm-pro.result != 'skipped'
       )
     runs-on: ubuntu-22.04
+    environment: production
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
