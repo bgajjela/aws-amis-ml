@@ -34,8 +34,7 @@ _runtime_lib_path() {
   find /nix/store \
     -type f \
     \( -name 'libstdc++.so.6*' -o -name 'libgomp.so.1*' \) \
-    -print 2>/dev/null \
-    | xargs -I{} dirname {} 2>/dev/null \
+    -exec dirname {} + 2>/dev/null \
     | awk 'NF' | sort -u | paste -sd: -
 }
 
