@@ -108,25 +108,6 @@ PY
   # but not the extra package set layered into the cache env itself.
   echo "${cache_site}" | sudo tee "${final_site}/_cache_env_site.pth" >/dev/null
 
-  # Some pip wheels (onnxruntime/OpenCV transitively via NumPy) expect the
-  # standard GNU C++ runtime to be resolvable at import time. Keep the dynamic
-  # loader search path explicit inside the venv activation path.
-  sudo tee "${final_site}/sitecustomize.py" >/dev/null <<'PY'
-import os
-_runtime_libs = [
-    "/usr/lib/x86_64-linux-gnu",
-    "/lib/x86_64-linux-gnu",
-    "/usr/lib/aarch64-linux-gnu",
-    "/lib/aarch64-linux-gnu",
-]
-existing = os.environ.get("LD_LIBRARY_PATH", "")
-parts = [p for p in _runtime_libs if os.path.isdir(p)]
-if existing:
-    parts.append(existing)
-if parts:
-    os.environ["LD_LIBRARY_PATH"] = ":".join(parts)
-PY
-
   echo "  [${label}] DS/ML pip wheels (numpy/scipy/pandas/sklearn/matplotlib + extras)..."
   sudo "${final_env}/bin/pip" install \
     numpy \
@@ -193,9 +174,9 @@ if [[ "${FAILED_LAYER}" -ne 0 ]]; then
   exit 1
 fi
 
-# ── Symlinks ──────────────────────────────────────────────────────────────────
+# ── Runtime wrappers and symlinks ─────────────────────────────────────────────
 echo ""
-echo "=== Creating /usr/local/bin symlinks ==="
+echo "=== Creating /usr/local/bin runtime wrappers ==="
 
 _link() {
   local src="$1" dst="$2"
@@ -206,26 +187,6 @@ _link() {
     echo "  WARN: ${src} not found — skipping ${dst}"
   fi
 }
-
-_link "${ENVS}/base/bin/python"         /usr/local/bin/py311
-
-# py312/py313: Nix may expose the binary as python3.12 / python3.13 rather than python
-for ver in 312 313; do
-  env_path="${ENVS}/base-py${ver}"
-  dst="/usr/local/bin/py${ver}"
-  if [[ -x "${env_path}/bin/python" ]]; then
-    sudo ln -sf "${env_path}/bin/python" "${dst}"
-    echo "  ${dst} -> ${env_path}/bin/python"
-  else
-    versioned="$(ls "${env_path}/bin/python3."* 2>/dev/null | head -n1)"
-    if [[ -n "${versioned}" ]]; then
-      sudo ln -sf "${versioned}" "${dst}"
-      echo "  ${dst} -> ${versioned}"
-    else
-      echo "  WARN: no python binary found in ${env_path}/bin — skipping ${dst}"
-    fi
-  fi
-done
 
 _link "${LANGS}/julia/bin/julia"         /usr/local/bin/julia
 _link "${LANGS}/R/bin/R"                 /usr/local/bin/R
@@ -245,6 +206,61 @@ sudo tee /etc/ld.so.conf.d/cpu-ds-ml.conf >/dev/null <<'EOF'
 /lib/aarch64-linux-gnu
 EOF
 sudo ldconfig
+
+# Wheel-backed Python extensions need their runtime library search path set
+# before the interpreter process starts. Doing this from sitecustomize.py is
+# too late for dlopen() resolution. Bake the relevant directories into small
+# launcher wrappers instead.
+RUNTIME_LIB_PATH="$(
+  {
+    printf '%s\n' \
+      /usr/lib/x86_64-linux-gnu \
+      /lib/x86_64-linux-gnu \
+      /usr/lib/aarch64-linux-gnu \
+      /lib/aarch64-linux-gnu
+    find /nix/store \
+      \( -name 'libstdc++.so.6*' -o -name 'libgomp.so.1*' -o -name 'libzmq.so*' \) \
+      -type f -exec dirname {} \; 2>/dev/null || true
+  } | while IFS= read -r dir; do
+        [[ -d "${dir}" ]] && printf '%s\n' "${dir}"
+      done | awk 'NF && !seen[$0]++' | paste -sd: -
+)"
+echo "  runtime library path: ${RUNTIME_LIB_PATH}"
+
+_python_wrapper() {
+  local py_bin="$1" dst="$2"
+  sudo tee "${dst}" >/dev/null <<WRAPPER
+#!/bin/sh
+RUNTIME_LIB_PATH="${RUNTIME_LIB_PATH}"
+if [ -n "\${RUNTIME_LIB_PATH}" ]; then
+  if [ -n "\${LD_LIBRARY_PATH:-}" ]; then
+    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}:\${LD_LIBRARY_PATH}"
+  else
+    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}"
+  fi
+fi
+exec "${py_bin}" "\$@"
+WRAPPER
+  sudo chmod 755 "${dst}"
+  echo "  ${dst} (wrapper -> ${py_bin})"
+}
+
+for ver_env in "311:${ENVS}/base" "312:${ENVS}/base-py312" "313:${ENVS}/base-py313"; do
+  ver="${ver_env%%:*}"
+  env_path="${ver_env##*:}"
+  dst="/usr/local/bin/py${ver}"
+  if [[ -x "${env_path}/bin/python" ]]; then
+    py_bin="${env_path}/bin/python"
+  else
+    py_bin="$(ls "${env_path}/bin/python3."* 2>/dev/null | head -n1)"
+  fi
+
+  if [[ -n "${py_bin:-}" && -x "${py_bin}" ]]; then
+    _python_wrapper "${py_bin}" "${dst}"
+  else
+    echo "  WARN: no python binary found in ${env_path}/bin — skipping ${dst}"
+  fi
+done
 
 # ── Spark wrapper scripts ─────────────────────────────────────────────────────
 # Wrappers rather than symlinks so JAVA_HOME, SPARK_HOME, SPARK_LOCAL_DIRS, and
@@ -272,7 +288,7 @@ sudo tee /usr/local/bin/pyspark >/dev/null <<WRAPPER
 JAVA_HOME=/opt/nix/langs/java
 SPARK_HOME=/opt/nix/langs/spark
 SPARK_LOCAL_DIRS=/opt/spark-local
-PYSPARK_PYTHON=\${PYSPARK_PYTHON:-/opt/nix/envs/base/bin/python}
+PYSPARK_PYTHON=\${PYSPARK_PYTHON:-/usr/local/bin/py311}
 export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
 exec "\${SPARK_HOME}/bin/pyspark" "\$@"
 WRAPPER
@@ -282,18 +298,18 @@ echo "  /usr/local/bin/pyspark (wrapper, default py311)"
 # pyspark311/312/313: version-pinned wrappers — work in scripts, cron, ssh, Jupyter
 for ver_env in "311:/opt/nix/envs/base" "312:/opt/nix/envs/base-py312" "313:/opt/nix/envs/base-py313"; do
   ver="${ver_env%%:*}"
-  env_path="${ver_env##*:}"
+  py_wrapper="/usr/local/bin/py${ver}"
   sudo tee "/usr/local/bin/pyspark${ver}" >/dev/null <<WRAPPER
 #!/bin/sh
 JAVA_HOME=/opt/nix/langs/java
 SPARK_HOME=/opt/nix/langs/spark
 SPARK_LOCAL_DIRS=/opt/spark-local
-PYSPARK_PYTHON=${env_path}/bin/python
+PYSPARK_PYTHON=${py_wrapper}
 export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
 exec "\${SPARK_HOME}/bin/pyspark" "\$@"
 WRAPPER
   sudo chmod 755 "/usr/local/bin/pyspark${ver}"
-  echo "  /usr/local/bin/pyspark${ver} -> ${env_path}"
+  echo "  /usr/local/bin/pyspark${ver} -> ${py_wrapper}"
 done
 
 echo ""

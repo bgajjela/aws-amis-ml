@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Dimenpoint
 #
-# ami-build.yml — x86_64 AMI build, test, and tagging pipeline.
+# ami-build-arm64.yml — ARM64 AMI build, test, and tagging pipeline.
 #
-# Triggered manually via workflow_dispatch. Builds x86 base/pro AMIs, tests
+# Triggered manually via workflow_dispatch. Builds ARM64 base/pro AMIs, tests
 # each on a live EC2 instance, then tags the resulting AMIs with a release
 # label.
 #
@@ -33,7 +33,7 @@
 #   ec2:CreateVolume, ec2:DeleteVolume,
 #   ec2:AttachVolume, ec2:DetachVolume
 
-name: AMI Build & Test (x86)
+name: AMI Build & Test (ARM64)
 
 on:
   workflow_dispatch:
@@ -43,14 +43,11 @@ on:
         type: choice
         default: base
         options:
-          - base       # x86 base only
-          - pro        # x86 base → pro
+          - base       # ARM base only
+          - pro        # ARM base → pro
       region:
         description: 'AWS region'
         default: us-east-1
-      existing_x86_base_ami_id:
-        description: 'Optional existing x86 base AMI ID to test/reuse instead of rebuilding base'
-        default: ''
       version_tag:
         description: 'Release tag to apply to built AMIs (e.g. v1.0.1)'
         default: ''
@@ -113,7 +110,7 @@ env:
   AWS_DEFAULT_REGION: ${{ github.event.inputs.region || 'us-east-1' }}
   PACKER_LOG: 1
   PACKER_LOG_PATH: /tmp/packer.log
-  X86_BASE_TEST_CONTRACT_VERSION: x86-base-runtime-v1
+  ARM64_BASE_TEST_CONTRACT_VERSION: arm64-base-runtime-v1
 
 # ── Validate ────────────────────────────────────────────────────────────────
 jobs:
@@ -144,14 +141,14 @@ jobs:
             -var base_ami_id_arm=ami-00000000000000000 \
             .
 
-# ── x86 base ────────────────────────────────────────────────────────────────
-  build-x86-base:
-    name: Build x86 base AMI
+# ── ARM64 base ───────────────────────────────────────────────────────────────
+  build-arm-base:
+    name: Build ARM64 base AMI
     needs: validate
     environment: production
-    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.existing_x86_base_ami_id == ''
+    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
-    timeout-minutes: 75
+    timeout-minutes: 90
     outputs:
       ami_id: ${{ steps.packer.outputs.ami_id }}
     steps:
@@ -252,14 +249,14 @@ jobs:
           fi
           echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
 
-      - name: Packer build — x86 base
+      - name: Packer build — ARM64 base
         id: packer
         run: |
           set +e
           packer init .
           packer build \
             -machine-readable \
-            -only=cpu-ds-ml-base.amazon-ebs.ubuntu_base \
+            -only=cpu-ds-ml-arm64-base.amazon-ebs.ubuntu_arm_base \
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
@@ -271,7 +268,7 @@ jobs:
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
           if [[ -z "$AMI_ID" ]]; then
             AMI_ID=$(aws ec2 describe-images --owners self \
-              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-base-*" \
+              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-arm64-base-*" \
               --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
               --output text --region "$AWS_DEFAULT_REGION")
           fi
@@ -285,7 +282,7 @@ jobs:
             --resources "$AMI_ID" \
             --region "$AWS_DEFAULT_REGION" \
             --tags \
-              "Key=TestContractVersion,Value=${X86_BASE_TEST_CONTRACT_VERSION}" \
+              "Key=TestContractVersion,Value=${ARM64_BASE_TEST_CONTRACT_VERSION}" \
               "Key=BaseRuntimeContract,Value=py311-py312-py313-pyspark-layered-wheels" \
               "Key=SourceCommit,Value=${GITHUB_SHA}"
           echo "Built AMI: ${AMI_ID}"
@@ -295,22 +292,19 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: packer-log-x86-base
+          name: packer-log-arm-base
           path: /tmp/packer-build.log
           retention-days: 3
 
-  guard-x86-base-test-contract:
-    name: Guard x86 base test contract
-    needs: [validate, build-x86-base]
+  guard-arm-base-test-contract:
+    name: Guard ARM64 base test contract
+    needs: [validate, build-arm-base]
     environment: production
     if: |
       always() &&
       needs.validate.result == 'success' &&
-      contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
-      (
-        github.event.inputs.existing_x86_base_ami_id != '' ||
-        needs.build-x86-base.result == 'success'
-      )
+      needs.build-arm-base.result == 'success' &&
+      contains(fromJSON('["base","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
@@ -324,14 +318,11 @@ jobs:
           role-duration-seconds: 3600
           audience: sts.amazonaws.com
 
-      - name: Validate x86 base AMI test contract
+      - name: Validate ARM64 base AMI test contract
         id: guard
         run: |
-          AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
-          if [[ -z "$AMI_ID" ]]; then
-            AMI_ID="${{ needs.build-x86-base.outputs.ami_id }}"
-          fi
-          [[ -z "$AMI_ID" ]] && { echo "ERROR: no AMI ID resolved for x86 base test guard"; exit 1; }
+          AMI_ID="${{ needs.build-arm-base.outputs.ami_id }}"
+          [[ -z "$AMI_ID" ]] && { echo "ERROR: no AMI ID resolved for ARM64 base test guard"; exit 1; }
 
           CONTRACT=$(aws ec2 describe-images \
             --image-ids "$AMI_ID" \
@@ -339,30 +330,25 @@ jobs:
             --query 'Images[0].Tags[?Key==`TestContractVersion`].Value | [0]' \
             --output text)
 
-          if [[ "$CONTRACT" != "${X86_BASE_TEST_CONTRACT_VERSION}" ]]; then
-            echo "ERROR: AMI $AMI_ID does not satisfy the current x86 base test contract."
-            echo "Expected TestContractVersion=${X86_BASE_TEST_CONTRACT_VERSION}"
+          if [[ "$CONTRACT" != "${ARM64_BASE_TEST_CONTRACT_VERSION}" ]]; then
+            echo "ERROR: AMI $AMI_ID does not satisfy the current ARM64 base test contract."
+            echo "Expected TestContractVersion=${ARM64_BASE_TEST_CONTRACT_VERSION}"
             echo "Found TestContractVersion=${CONTRACT:-<missing>}"
-            echo "Rebuild the base AMI with the current pipeline before running the x86 base test."
             exit 1
           fi
 
-          echo "AMI contract verified: ${X86_BASE_TEST_CONTRACT_VERSION}"
+          echo "AMI contract verified: ${ARM64_BASE_TEST_CONTRACT_VERSION}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
-  test-x86-base:
-    name: Test x86 base AMI
-    needs: [validate, build-x86-base, guard-x86-base-test-contract]
+  test-arm-base:
+    name: Test ARM64 base AMI
+    needs: [validate, build-arm-base, guard-arm-base-test-contract]
     environment: production
     if: |
       always() &&
       needs.validate.result == 'success' &&
-      needs.guard-x86-base-test-contract.result == 'success' &&
-      contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
-      (
-        github.event.inputs.existing_x86_base_ami_id != '' ||
-        needs.build-x86-base.result == 'success'
-      )
+      needs.guard-arm-base-test-contract.result == 'success' &&
+      contains(fromJSON('["base","pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -426,29 +412,29 @@ jobs:
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
           fi
 
-      - name: Run AMI tests — x86 base
+      - name: Run AMI tests — ARM64 base
         run: |
           chmod +x scripts/test-ami.sh
-          AMI_ID="${{ needs.guard-x86-base-test-contract.outputs.ami_id }}"
+          AMI_ID="${{ needs.guard-arm-base-test-contract.outputs.ami_id }}"
           scripts/test-ami.sh \
             "${AMI_ID}" \
-            x86_64 \
+            arm64 \
             base
 
       - name: Pass AMI ID to tag job
         id: passthrough
         run: |
-          AMI_ID="${{ needs.guard-x86-base-test-contract.outputs.ami_id }}"
+          AMI_ID="${{ needs.guard-arm-base-test-contract.outputs.ami_id }}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
-# ── x86 pro ─────────────────────────────────────────────────────────────────
-  build-x86-pro:
-    name: Build x86 pro AMI
-    needs: test-x86-base
+# ── ARM64 pro ────────────────────────────────────────────────────────────────
+  build-arm-pro:
+    name: Build ARM64 pro AMI
+    needs: test-arm-base
     environment: production
     if: success() && contains(fromJSON('["pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
-    timeout-minutes: 75
+    timeout-minutes: 90
     outputs:
       ami_id: ${{ steps.packer.outputs.ami_id }}
     steps:
@@ -549,16 +535,16 @@ jobs:
           fi
           echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
 
-      - name: Packer build — x86 pro
+      - name: Packer build — ARM64 pro
         id: packer
         run: |
           set +e
           packer init .
           packer build \
             -machine-readable \
-            -only=cpu-ds-ml-pro.amazon-ebs.ubuntu_pro \
+            -only=cpu-ds-ml-arm64-pro.amazon-ebs.ubuntu_arm_pro \
             -var "region=${AWS_DEFAULT_REGION}" \
-            -var "base_ami_id=${{ needs.test-x86-base.outputs.ami_id }}" \
+            -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
@@ -569,7 +555,7 @@ jobs:
             | grep -oE 'ami-[0-9a-f]{17}' | head -1)
           if [[ -z "$AMI_ID" ]]; then
             AMI_ID=$(aws ec2 describe-images --owners self \
-              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-pro-*" \
+              --filters "Name=name,Values=cpu-ds-ml-ubuntu-2204-arm64-pro-*" \
               --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
               --output text --region "$AWS_DEFAULT_REGION")
           fi
@@ -586,13 +572,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: packer-log-x86-pro
+          name: packer-log-arm-pro
           path: /tmp/packer-build.log
           retention-days: 3
 
-  test-x86-pro:
-    name: Test x86 pro AMI
-    needs: build-x86-pro
+  test-arm-pro:
+    name: Test ARM64 pro AMI
+    needs: build-arm-pro
     environment: production
     runs-on: ubuntu-22.04
     timeout-minutes: 45
@@ -657,28 +643,28 @@ jobs:
             echo "::add-mask::${{ secrets.PACKER_SUBNET_ID }}"
           fi
 
-      - name: Run AMI tests — x86 pro
+      - name: Run AMI tests — ARM64 pro
         run: |
           chmod +x scripts/test-ami.sh
           scripts/test-ami.sh \
-            "${{ needs.build-x86-pro.outputs.ami_id }}" \
-            x86_64 \
+            "${{ needs.build-arm-pro.outputs.ami_id }}" \
+            arm64 \
             pro
 
       - name: Pass AMI ID to tag job
         id: passthrough
-        run: echo "ami_id=${{ needs.build-x86-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "ami_id=${{ needs.build-arm-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
 
 # ── Tag AMIs ─────────────────────────────────────────────────────────────────
   tag-release:
     name: Tag AMIs with release version
-    needs: [test-x86-base, test-x86-pro]
+    needs: [test-arm-base, test-arm-pro]
     environment: production
     if: |
       always() &&
       github.event.inputs.version_tag != '' &&
-      (needs.test-x86-base.result == 'success' || needs.test-x86-base.result == 'skipped') &&
-      (needs.test-x86-pro.result == 'success' || needs.test-x86-pro.result == 'skipped') &&
+      (needs.test-arm-base.result == 'success' || needs.test-arm-base.result == 'skipped') &&
+      (needs.test-arm-pro.result == 'success' || needs.test-arm-pro.result == 'skipped') &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-22.04
@@ -760,9 +746,10 @@ jobs:
             echo "Tagged ${ami_id} (${label}) with ${VERSION}"
           }
 
-          tag_ami "${{ needs.test-x86-base.outputs.ami_id }}" "x86-base"
-          tag_ami "${{ needs.test-x86-pro.outputs.ami_id }}"  "x86-pro"
-      - name: Retire old x86 AMIs (keep latest 1 of each)
+          tag_ami "${{ needs.test-arm-base.outputs.ami_id }}" "arm-base"
+          tag_ami "${{ needs.test-arm-pro.outputs.ami_id }}"  "arm-pro"
+
+      - name: Retire old ARM64 AMIs (keep latest 1 of each)
         run: |
           REGION="${AWS_DEFAULT_REGION}"
 
@@ -795,8 +782,8 @@ jobs:
             done
           }
 
-          retire_old_amis "cpu-ds-ml-ubuntu-2204-base-*"
-          retire_old_amis "cpu-ds-ml-ubuntu-2204-pro-*"
+          retire_old_amis "cpu-ds-ml-ubuntu-2204-arm64-base-*"
+          retire_old_amis "cpu-ds-ml-ubuntu-2204-arm64-pro-*"
 
 # ── Safety-net cleanup ───────────────────────────────────────────────────────
 # Runs unconditionally after every pipeline execution — success, failure, or
@@ -805,7 +792,7 @@ jobs:
 # test-ami.sh was skipped due to a SIGKILL from a job timeout.
   cleanup-orphans:
     name: Terminate orphaned test instances
-    needs: [test-x86-base, test-x86-pro]
+    needs: [test-arm-base, test-arm-pro]
     if: always()
     runs-on: ubuntu-22.04
     environment: production

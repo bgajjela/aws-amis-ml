@@ -240,16 +240,18 @@ jobs:
             echo "WARNING: Could not verify Nix feature flags format"
           fi
 
-      - name: Verify credential masking in ami-build.yml
+      - name: Verify credential masking in AMI workflows
         run: |
-          echo "Checking that ami-build.yml includes credential masking..."
-          if grep -q "::add-mask::" .github/workflows/ami-build.yml; then
-            mask_count=$(grep -c "::add-mask::" .github/workflows/ami-build.yml)
-            echo "✓ Credential masking detected ($mask_count masks in ami-build.yml)"
-          else
-            echo "ERROR: No credential masking found in ami-build.yml"
-            exit 1
-          fi
+          for workflow in .github/workflows/ami-build.yml .github/workflows/ami-build-arm64.yml; do
+            echo "Checking credential masking in ${workflow}..."
+            if grep -q "::add-mask::" "${workflow}"; then
+              mask_count=$(grep -c "::add-mask::" "${workflow}")
+              echo "✓ Credential masking detected (${mask_count} masks in ${workflow})"
+            else
+              echo "ERROR: No credential masking found in ${workflow}"
+              exit 1
+            fi
+          done
 
       - name: Check for file provisioner placeholders
         run: |
@@ -290,37 +292,45 @@ jobs:
           done
           echo "✓ All 4 build targets present (x86 base/pro, ARM64 base/pro)"
 
-      - name: Verify ami-build.yml environment variables
+      - name: Verify AMI workflow environment variables
         run: |
-          echo "Checking ami-build.yml for required environment configuration..."
-          if grep -q "AWS_ROLE_ARN" .github/workflows/ami-build.yml; then
-            echo "  ✓ AWS_ROLE_ARN referenced"
-          else
-            echo "  ✗ MISSING: AWS_ROLE_ARN not found in ami-build.yml"
-          fi
-          if grep -q "AWS_DEFAULT_REGION\|region" .github/workflows/ami-build.yml; then
-            echo "  ✓ AWS_DEFAULT_REGION configured"
-          else
-            echo "  ✗ MISSING: region configuration not found in ami-build.yml"
-          fi
+          for workflow in .github/workflows/ami-build.yml .github/workflows/ami-build-arm64.yml; do
+            echo "Checking ${workflow} for required environment configuration..."
+            if grep -q "AWS_ROLE_ARN" "${workflow}"; then
+              echo "  ✓ AWS_ROLE_ARN referenced"
+            else
+              echo "  ✗ MISSING: AWS_ROLE_ARN not found in ${workflow}"
+              exit 1
+            fi
+            if grep -q "AWS_DEFAULT_REGION\|region" "${workflow}"; then
+              echo "  ✓ AWS_DEFAULT_REGION configured"
+            else
+              echo "  ✗ MISSING: region configuration not found in ${workflow}"
+              exit 1
+            fi
+          done
 
-      - name: Check ami-build.yml has approval gates
+      - name: Check AMI workflows have approval gates
         run: |
-          echo "Verifying production environment protection..."
-          if grep -q "environment.*production" .github/workflows/ami-build.yml; then
-            echo "✓ Production environment approval gates configured"
-          else
-            echo "WARNING: No production environment approval gates found"
-          fi
+          for workflow in .github/workflows/ami-build.yml .github/workflows/ami-build-arm64.yml; do
+            echo "Verifying production environment protection in ${workflow}..."
+            if grep -q "environment.*production" "${workflow}"; then
+              echo "✓ Production environment approval gates configured"
+            else
+              echo "WARNING: No production environment approval gates found in ${workflow}"
+            fi
+          done
 
       - name: Validate packer timeout is sufficient
         run: |
-          echo "Checking build timeouts..."
-          if grep -q "timeout.*[34][0-9]\|timeout.*60" .github/workflows/ami-build.yml; then
-            echo "✓ Build timeout appears reasonable (30-60 min)"
-          else
-            echo "WARNING: Could not verify build timeout in ami-build.yml"
-          fi
+          for workflow in .github/workflows/ami-build.yml .github/workflows/ami-build-arm64.yml; do
+            echo "Checking build timeouts in ${workflow}..."
+            if grep -q "timeout.*[34][0-9]\|timeout.*60\|timeout.*75\|timeout.*90" "${workflow}"; then
+              echo "✓ Build timeout appears reasonable"
+            else
+              echo "WARNING: Could not verify build timeout in ${workflow}"
+            fi
+          done
 
       - name: Verify test-ami.sh has required checks
         run: |
@@ -555,16 +565,15 @@ jobs:
           echo "  ✅ ALL PRE-BUILD VALIDATIONS PASSED"
           echo "════════════════════════════════════════════════════════════════"
           echo ""
-          echo "Next: Triggering ami-build.yml for automatic build & test..."
+          echo "Next: ARM64 and x86 AMI workflows are available as separate manual entrypoints."
           echo ""
-          echo "Build will:"
+          echo "A workflow run will:"
           echo "  1. Verify AWS credentials (OIDC)"
-          echo "  2. Run Packer build for all 4 AMI variants"
-          echo "  3. Test each AMI with live EC2 instances"
-          echo "  4. Generate CIS compliance report"
+          echo "  2. Run the selected Packer build path"
+          echo "  3. Test the selected AMI with live EC2 instances"
+          echo "  4. Optionally tag/retire AMIs for that architecture"
           echo ""
-          echo "Estimated cost: ~\$4-6 per build cycle"
-          echo "Estimated time: ~90 minutes"
+          echo "Estimated cost/time now depends on whether you run the x86 or ARM64 workflow."
           echo "════════════════════════════════════════════════════════════════"
 
       - name: Trigger Nix Cache Pre-build workflow
@@ -576,9 +585,9 @@ jobs:
           echo ""
           echo "✅ Nix cache pre-build triggered!"
           echo "This will:"
-          echo "  1. Build all Nix packages (45-60 min)"
+          echo "  1. Build the cache workflow payload"
           echo "  2. Upload to Cachix binary cache"
-          echo "  3. Automatically trigger ami-build.yml"
+          echo "  3. Leave AMI x86/ARM64 workflows available for manual dispatch"
           echo ""
           echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/build-nix-cache.yml"
         env:

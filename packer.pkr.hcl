@@ -358,12 +358,12 @@ build {
   provisioner "shell" {
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
-      "/opt/nix/envs/base/bin/python -c 'import pyspark; print(pyspark.__version__)'",
-      "/opt/nix/envs/base-py312/bin/python -c 'import pyspark; print(pyspark.__version__)'",
-      "/opt/nix/envs/base-py313/bin/python -c 'import pyspark; print(pyspark.__version__)'",
-      "/opt/nix/envs/base/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py311 final runtime OK\")'",
-      "/opt/nix/envs/base-py312/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py312 final runtime OK\")'",
-      "/opt/nix/envs/base-py313/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py313 final runtime OK\")'",
+      "/usr/local/bin/py311 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py312 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py313 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py311 -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py311 final runtime OK\")'",
+      "/usr/local/bin/py312 -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py312 final runtime OK\")'",
+      "/usr/local/bin/py313 -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py313 final runtime OK\")'",
     ]
   }
 }
@@ -590,12 +590,12 @@ build {
   provisioner "shell" {
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
-      "/opt/nix/envs/base/bin/python -c 'import pyspark; print(pyspark.__version__)'",
-      "/opt/nix/envs/base-py312/bin/python -c 'import pyspark; print(pyspark.__version__)'",
-      "/opt/nix/envs/base-py313/bin/python -c 'import pyspark; print(pyspark.__version__)'",
-      "/opt/nix/envs/base/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py311 final runtime OK\")'",
-      "/opt/nix/envs/base-py312/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py312 final runtime OK\")'",
-      "/opt/nix/envs/base-py313/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py313 final runtime OK\")'",
+      "/usr/local/bin/py311 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py312 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py313 -c 'import pyspark; print(pyspark.__version__)'",
+      "/usr/local/bin/py311 -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py311 final runtime OK\")'",
+      "/usr/local/bin/py312 -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py312 final runtime OK\")'",
+      "/usr/local/bin/py313 -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py313 final runtime OK\")'",
     ]
   }
 }
