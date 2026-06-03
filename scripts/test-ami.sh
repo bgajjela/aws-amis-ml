@@ -60,7 +60,6 @@ echo "::add-mask::${_RAW_IP}"
 echo "::add-mask::${MY_CIDR}"
 echo "::add-mask::${REGION}"
 echo "::add-mask::${VPC_ID}"
-echo "::add-mask::${SUBNET_ID}"
 echo "Runner IP: ***"
 
 # ── Temp security group (SSH in from runner only; restricted egress) ──────────
