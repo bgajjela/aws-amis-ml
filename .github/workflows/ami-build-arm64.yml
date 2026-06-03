@@ -460,7 +460,7 @@ jobs:
     name: Build ARM64 pro AMI
     needs: test-arm-base
     environment: production
-    if: needs.test-arm-base.result == 'success' && github.event.inputs.target == 'pro'
+    if: needs.test-arm-base.result == 'success' && (inputs.target == 'pro' || github.event.inputs.target == 'pro')
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     outputs:

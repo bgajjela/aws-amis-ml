@@ -474,7 +474,7 @@ jobs:
     name: Build x86 pro AMI
     needs: test-x86-base
     environment: production
-    if: needs.test-x86-base.result == 'success' && github.event.inputs.target == 'pro'
+    if: needs.test-x86-base.result == 'success' && (inputs.target == 'pro' || github.event.inputs.target == 'pro')
     runs-on: ubuntu-22.04
     timeout-minutes: 75
     outputs:
