@@ -228,7 +228,7 @@ node --version
 
 echo "--- Hardening spot checks ---"
 # SSH: password auth disabled
-grep -i 'passwordauthentication no' /etc/ssh/sshd_config
+sudo grep -i 'passwordauthentication no' /etc/ssh/sshd_config
 # UFW active
 sudo ufw status | grep -i 'Status: active'
 # AppArmor enforcing

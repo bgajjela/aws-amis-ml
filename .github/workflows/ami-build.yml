@@ -144,11 +144,20 @@ jobs:
             -var base_ami_id_arm=ami-00000000000000000 \
             .
 
+  approve-production:
+    name: Approve production access
+    needs: validate
+    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target)
+    runs-on: ubuntu-22.04
+    environment: production
+    steps:
+      - name: Approval granted
+        run: echo "Production environment approved for this run."
+
 # ── x86 base ────────────────────────────────────────────────────────────────
   build-x86-base:
     name: Build x86 base AMI
-    needs: validate
-    environment: production
+    needs: [validate, approve-production]
     if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.existing_x86_base_ami_id == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 75
@@ -329,8 +338,7 @@ jobs:
 
   guard-x86-base-test-contract:
     name: Guard x86 base test contract
-    needs: [validate, build-x86-base]
-    environment: production
+    needs: [validate, approve-production, build-x86-base]
     if: |
       always() &&
       needs.validate.result == 'success' &&
@@ -380,8 +388,7 @@ jobs:
 
   test-x86-base:
     name: Test x86 base AMI
-    needs: [validate, build-x86-base, guard-x86-base-test-contract]
-    environment: production
+    needs: [validate, approve-production, build-x86-base, guard-x86-base-test-contract]
     if: |
       always() &&
       needs.validate.result == 'success' &&
@@ -473,7 +480,6 @@ jobs:
   build-x86-pro:
     name: Build x86 pro AMI
     needs: test-x86-base
-    environment: production
     if: success() && contains(fromJSON('["pro"]'), github.event.inputs.target)
     runs-on: ubuntu-22.04
     timeout-minutes: 75
@@ -649,7 +655,6 @@ jobs:
   test-x86-pro:
     name: Test x86 pro AMI
     needs: build-x86-pro
-    environment: production
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -729,7 +734,6 @@ jobs:
   tag-release:
     name: Tag AMIs with release version
     needs: [test-x86-base, test-x86-pro]
-    environment: production
     if: |
       always() &&
       github.event.inputs.version_tag != '' &&
@@ -869,7 +873,6 @@ jobs:
         needs.test-x86-pro.result != 'skipped'
       )
     runs-on: ubuntu-22.04
-    environment: production
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
