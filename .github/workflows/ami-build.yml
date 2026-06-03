@@ -116,6 +116,7 @@ env:
   AWS_DEFAULT_REGION: ${{ github.event.inputs.region || 'us-east-1' }}
   PACKER_LOG: 1
   PACKER_LOG_PATH: /tmp/packer.log
+  X86_BASE_TEST_CONTRACT_VERSION: x86-base-runtime-v1
 
 # ── Validate ────────────────────────────────────────────────────────────────
 jobs:
@@ -283,6 +284,13 @@ jobs:
             exit $status
           fi
           [[ -z "$AMI_ID" || "$AMI_ID" == "None" ]] && { echo "ERROR: AMI ID not found"; exit 1; }
+          aws ec2 create-tags \
+            --resources "$AMI_ID" \
+            --region "$AWS_DEFAULT_REGION" \
+            --tags \
+              "Key=TestContractVersion,Value=${X86_BASE_TEST_CONTRACT_VERSION}" \
+              "Key=BaseRuntimeContract,Value=py311-py312-py313-pyspark-layered-wheels" \
+              "Key=SourceCommit,Value=${GITHUB_SHA}"
           echo "Built AMI: ${AMI_ID}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
@@ -294,13 +302,65 @@ jobs:
           path: /tmp/packer-build.log
           retention-days: 3
 
-  test-x86-base:
-    name: Test x86 base AMI
+  guard-x86-base-test-contract:
+    name: Guard x86 base test contract
     needs: [validate, build-x86-base]
     environment: production
     if: |
       always() &&
       needs.validate.result == 'success' &&
+      contains(fromJSON('["all","base","pro"]'), github.event.inputs.target) &&
+      (
+        github.event.inputs.existing_x86_base_ami_id != '' ||
+        needs.build-x86-base.result == 'success'
+      )
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      ami_id: ${{ steps.guard.outputs.ami_id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 3600
+          audience: sts.amazonaws.com
+
+      - name: Validate x86 base AMI test contract
+        id: guard
+        run: |
+          AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
+          if [[ -z "$AMI_ID" ]]; then
+            AMI_ID="${{ needs.build-x86-base.outputs.ami_id }}"
+          fi
+          [[ -z "$AMI_ID" ]] && { echo "ERROR: no AMI ID resolved for x86 base test guard"; exit 1; }
+
+          CONTRACT=$(aws ec2 describe-images \
+            --image-ids "$AMI_ID" \
+            --region "$AWS_DEFAULT_REGION" \
+            --query 'Images[0].Tags[?Key==`TestContractVersion`].Value | [0]' \
+            --output text)
+
+          if [[ "$CONTRACT" != "${X86_BASE_TEST_CONTRACT_VERSION}" ]]; then
+            echo "ERROR: AMI $AMI_ID does not satisfy the current x86 base test contract."
+            echo "Expected TestContractVersion=${X86_BASE_TEST_CONTRACT_VERSION}"
+            echo "Found TestContractVersion=${CONTRACT:-<missing>}"
+            echo "Rebuild the base AMI with the current pipeline before running the x86 base test."
+            exit 1
+          fi
+
+          echo "AMI contract verified: ${X86_BASE_TEST_CONTRACT_VERSION}"
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+
+  test-x86-base:
+    name: Test x86 base AMI
+    needs: [validate, build-x86-base, guard-x86-base-test-contract]
+    environment: production
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.guard-x86-base-test-contract.result == 'success' &&
       contains(fromJSON('["all","base","pro"]'), github.event.inputs.target) &&
       (
         github.event.inputs.existing_x86_base_ami_id != '' ||
@@ -372,10 +432,7 @@ jobs:
       - name: Run AMI tests — x86 base
         run: |
           chmod +x scripts/test-ami.sh
-          AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
-          if [[ -z "$AMI_ID" ]]; then
-            AMI_ID="${{ needs.build-x86-base.outputs.ami_id }}"
-          fi
+          AMI_ID="${{ needs.guard-x86-base-test-contract.outputs.ami_id }}"
           scripts/test-ami.sh \
             "${AMI_ID}" \
             x86_64 \
@@ -384,10 +441,7 @@ jobs:
       - name: Pass AMI ID to tag job
         id: passthrough
         run: |
-          AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
-          if [[ -z "$AMI_ID" ]]; then
-            AMI_ID="${{ needs.build-x86-base.outputs.ami_id }}"
-          fi
+          AMI_ID="${{ needs.guard-x86-base-test-contract.outputs.ami_id }}"
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
 # ── x86 pro ─────────────────────────────────────────────────────────────────
