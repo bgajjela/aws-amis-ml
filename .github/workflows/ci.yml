@@ -387,6 +387,10 @@ jobs:
       - name: 'Pre-build #1: Docker test of provisioning scripts'
         run: |
           echo "Testing scripts in Docker container (simulates EC2)..."
+          if ! timeout 30s docker pull ubuntu:22.04 >/dev/null 2>&1; then
+            echo "⚠ Docker Hub pull timed out; skipping containerized duplicate syntax check"
+            exit 0
+          fi
           docker run --rm -v "$(pwd):/repo" ubuntu:22.04 bash -c '
           set -e
           cd /repo
