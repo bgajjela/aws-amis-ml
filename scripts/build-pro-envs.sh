@@ -21,48 +21,112 @@ set -euo pipefail
 
 TORCH_INDEX="https://download.pytorch.org/whl/cpu"
 ARCH="$(uname -m)"   # x86_64 or aarch64
+PIP_TMPDIR="/opt/pip-tmp"
+PIP_CACHE_DIR="/opt/pip-cache"
+
+sudo mkdir -p "${PIP_TMPDIR}" "${PIP_CACHE_DIR}"
+sudo chmod 1777 "${PIP_TMPDIR}"
+sudo chmod 755 "${PIP_CACHE_DIR}"
+
+_pip_invoke() {
+  sudo env \
+    TMPDIR="${PIP_TMPDIR}" \
+    TEMP="${PIP_TMPDIR}" \
+    TMP="${PIP_TMPDIR}" \
+    PIP_CACHE_DIR="${PIP_CACHE_DIR}" \
+    "$@"
+}
+
+_runtime_lib_path() {
+  find /nix/store \
+    -type f \
+    \( -name 'libstdc++.so.6*' -o -name 'libgomp.so.1*' \) \
+    -exec dirname {} + 2>/dev/null \
+    | awk 'NF' | sort -u | paste -sd: -
+}
+
+_write_python_wrapper() {
+  local py_bin="$1" dst="$2" runtime_lib_path="$3"
+  sudo tee "${dst}" >/dev/null <<WRAPPER
+#!/bin/sh
+RUNTIME_LIB_PATH="${runtime_lib_path}"
+if [ -n "\${RUNTIME_LIB_PATH}" ]; then
+  if [ -n "\${LD_LIBRARY_PATH:-}" ]; then
+    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}:\${LD_LIBRARY_PATH}"
+  else
+    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}"
+  fi
+fi
+exec "${py_bin}" "\$@"
+WRAPPER
+  sudo chmod 755 "${dst}"
+}
 
 # ── Per-version build function (runs in a subshell background job) ────────────
 _build_pro() {
-  local label="$1" base_env="$2" pro_env="$3" symlink="$4"
+  local label="$1" base_env="$2" pro_env="$3" wrapper_dst="$4"
+  local runtime_lib_path smoke_wrapper pro_site base_site cache_site
 
   echo "=== [${label}] ${base_env} -> ${pro_env} (arch: ${ARCH}) ==="
 
   sudo "${base_env}/bin/python" -m venv --system-site-packages "${pro_env}"
-  sudo "${pro_env}/bin/pip" install --upgrade pip --quiet
+  _pip_invoke "${pro_env}/bin/pip" install --upgrade pip --quiet
+
+  pro_site="$("${pro_env}/bin/python" - <<'PY'
+import site
+print(site.getsitepackages()[0])
+PY
+)"
+  base_site="$("${base_env}/bin/python" - <<'PY'
+import site
+print(site.getsitepackages()[0])
+PY
+)"
+  cache_site="$("/opt/nix/cache-envs/${base_env##*/}/bin/python" - <<'PY'
+import site
+print(site.getsitepackages()[0])
+PY
+)"
+
+  printf '%s\n' "${base_site}" | sudo tee "${pro_site}/_base_env_site.pth" >/dev/null
+  printf '%s\n' "${cache_site}" | sudo tee "${pro_site}/_cache_env_site.pth" >/dev/null
 
   echo "  [${label}] torch (CPU wheels)..."
   if [ "${ARCH}" = "x86_64" ]; then
     # WHL index: smaller download, no CUDA wheels pulled in
-    sudo "${pro_env}/bin/pip" install \
+    _pip_invoke "${pro_env}/bin/pip" install \
       torch torchvision torchaudio \
       --index-url "${TORCH_INDEX}" \
       --quiet
   else
     # ARM64: PyPI has first-class aarch64 wheels; WHL index coverage is incomplete
-    sudo "${pro_env}/bin/pip" install \
+    _pip_invoke "${pro_env}/bin/pip" install \
       torch torchvision torchaudio \
       --quiet
   fi
 
   echo "  [${label}] tensorflow-cpu + ecosystem..."
-  sudo "${pro_env}/bin/pip" install \
+  _pip_invoke "${pro_env}/bin/pip" install \
     tensorflow-cpu \
     transformers datasets tokenizers sentencepiece accelerate \
     --quiet
 
   echo "  [${label}] mlflow, xgboost, lightgbm..."
-  sudo "${pro_env}/bin/pip" install mlflow xgboost lightgbm --quiet
+  _pip_invoke "${pro_env}/bin/pip" install mlflow xgboost lightgbm --quiet
 
   echo "  [${label}] smoke test..."
-  "${pro_env}/bin/python" -c "
+  runtime_lib_path="$(_runtime_lib_path)"
+  smoke_wrapper="${PIP_TMPDIR}/${label}-smoke-python"
+  _write_python_wrapper "${pro_env}/bin/python" "${smoke_wrapper}" "${runtime_lib_path}"
+  "${smoke_wrapper}" -c "
 import numpy, pandas, pyspark, sklearn
 import torch, tensorflow, transformers, mlflow, xgboost, lightgbm
 print('  numpy=' + numpy.__version__ + ' torch=' + torch.__version__ + \
       ' tf=' + tensorflow.__version__ + ' mlflow=' + mlflow.__version__)
 "
-  sudo ln -sf "${pro_env}/bin/python" "${symlink}"
-  echo "  [${label}] linked: ${symlink} -> ${pro_env}/bin/python"
+  sudo rm -f "${smoke_wrapper}"
+  _write_python_wrapper "${pro_env}/bin/python" "${wrapper_dst}" "${runtime_lib_path}"
+  echo "  [${label}] wrapper: ${wrapper_dst} -> ${pro_env}/bin/python"
   echo "=== [${label}] DONE ==="
 }
 
@@ -124,7 +188,7 @@ for ver_env in "311:/opt/nix/envs/pro" "312:/opt/nix/envs/pro-py312" "313:/opt/n
 JAVA_HOME=/opt/nix/langs/java
 SPARK_HOME=/opt/nix/langs/spark
 SPARK_LOCAL_DIRS=/opt/spark-local
-PYSPARK_PYTHON=${env_path}/bin/python
+PYSPARK_PYTHON=/usr/local/bin/py${ver}
 export JAVA_HOME SPARK_HOME SPARK_LOCAL_DIRS PYSPARK_PYTHON
 exec "\${SPARK_HOME}/bin/pyspark" "\$@"
 WRAPPER

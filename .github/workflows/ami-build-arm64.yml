@@ -601,7 +601,7 @@ jobs:
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
-            -var "root_volume_size=24" \
+            -var "root_volume_size=50" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . > /tmp/packer-build.raw.log 2>&1
