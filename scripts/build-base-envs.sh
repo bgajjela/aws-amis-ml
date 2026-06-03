@@ -85,11 +85,47 @@ fi
 # ── Layer heavy wheels on top of the cached Nix envs ─────────────────────────
 _layer_base() {
   local label="$1" cache_env="$2" final_env="$3"
+  local cache_site final_site
   echo "=== [${label}] layering wheels onto ${final_env} (arch: ${ARCH}) ==="
 
   sudo rm -rf "${final_env}"
   sudo "${cache_env}/bin/python" -m venv --system-site-packages "${final_env}"
   sudo "${final_env}/bin/pip" install --upgrade pip --quiet
+
+  cache_site=$("${cache_env}/bin/python" - <<'PY'
+import site
+print(site.getsitepackages()[0])
+PY
+)
+  final_site=$("${final_env}/bin/python" - <<'PY'
+import site
+print(site.getsitepackages()[0])
+PY
+)
+
+  # The final env must explicitly see the cache env site-packages. Plain
+  # venv --system-site-packages inherits the interpreter's base site-packages,
+  # but not the extra package set layered into the cache env itself.
+  echo "${cache_site}" | sudo tee "${final_site}/_cache_env_site.pth" >/dev/null
+
+  # Some pip wheels (onnxruntime/OpenCV transitively via NumPy) expect the
+  # standard GNU C++ runtime to be resolvable at import time. Keep the dynamic
+  # loader search path explicit inside the venv activation path.
+  sudo tee "${final_site}/sitecustomize.py" >/dev/null <<'PY'
+import os
+_runtime_libs = [
+    "/usr/lib/x86_64-linux-gnu",
+    "/lib/x86_64-linux-gnu",
+    "/usr/lib/aarch64-linux-gnu",
+    "/lib/aarch64-linux-gnu",
+]
+existing = os.environ.get("LD_LIBRARY_PATH", "")
+parts = [p for p in _runtime_libs if os.path.isdir(p)]
+if existing:
+    parts.append(existing)
+if parts:
+    os.environ["LD_LIBRARY_PATH"] = ":".join(parts)
+PY
 
   echo "  [${label}] DS/ML pip wheels (numpy/scipy/pandas/sklearn/matplotlib + extras)..."
   sudo "${final_env}/bin/pip" install \
@@ -200,6 +236,15 @@ _link "${LANGS}/rustc/bin/rustc"         /usr/local/bin/rustc
 _link "${LANGS}/cargo/bin/cargo"         /usr/local/bin/cargo
 _link "${LANGS}/nodejs/bin/node"         /usr/local/bin/node
 _link "${LANGS}/nodejs/bin/npm"          /usr/local/bin/npm
+
+# Keep the GNU C++ runtime discoverable for pip wheels that dlopen C++ extensions.
+sudo tee /etc/ld.so.conf.d/cpu-ds-ml.conf >/dev/null <<'EOF'
+/usr/lib/x86_64-linux-gnu
+/lib/x86_64-linux-gnu
+/usr/lib/aarch64-linux-gnu
+/lib/aarch64-linux-gnu
+EOF
+sudo ldconfig
 
 # ── Spark wrapper scripts ─────────────────────────────────────────────────────
 # Wrappers rather than symlinks so JAVA_HOME, SPARK_HOME, SPARK_LOCAL_DIRS, and

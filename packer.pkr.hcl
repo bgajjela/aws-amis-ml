@@ -219,7 +219,7 @@ build {
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
       # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
@@ -354,6 +354,18 @@ build {
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh base"]
   }
+
+  provisioner "shell" {
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
+    inline = [
+      "/opt/nix/envs/base/bin/python -c 'import pyspark; print(pyspark.__version__)'",
+      "/opt/nix/envs/base-py312/bin/python -c 'import pyspark; print(pyspark.__version__)'",
+      "/opt/nix/envs/base-py313/bin/python -c 'import pyspark; print(pyspark.__version__)'",
+      "/opt/nix/envs/base/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py311 final runtime OK\")'",
+      "/opt/nix/envs/base-py312/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py312 final runtime OK\")'",
+      "/opt/nix/envs/base-py313/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py313 final runtime OK\")'",
+    ]
+  }
 }
 
 # =======================
@@ -452,7 +464,7 @@ build {
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
       # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
       # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
@@ -573,6 +585,18 @@ build {
   provisioner "shell" {
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = ["sudo bash /tmp/ami-finalize.sh base"]
+  }
+
+  provisioner "shell" {
+    execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
+    inline = [
+      "/opt/nix/envs/base/bin/python -c 'import pyspark; print(pyspark.__version__)'",
+      "/opt/nix/envs/base-py312/bin/python -c 'import pyspark; print(pyspark.__version__)'",
+      "/opt/nix/envs/base-py313/bin/python -c 'import pyspark; print(pyspark.__version__)'",
+      "/opt/nix/envs/base/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py311 final runtime OK\")'",
+      "/opt/nix/envs/base-py312/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py312 final runtime OK\")'",
+      "/opt/nix/envs/base-py313/bin/python -c 'import jupyterlab, onnxruntime, cv2, skimage; print(\"py313 final runtime OK\")'",
+    ]
   }
 }
 
