@@ -184,20 +184,36 @@ echo "=== Base runtime verification ==="
 ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" bash -s << 'SSHEOF'
 set -euo pipefail
 
+resolve_python() {
+  local preferred="$1" fallback="$2"
+  if [[ -x "$preferred" ]]; then
+    printf '%s\n' "$preferred"
+  elif [[ -x "$fallback" ]]; then
+    printf '%s\n' "$fallback"
+  else
+    echo "ERROR: no Python found at $preferred or $fallback" >&2
+    exit 1
+  fi
+}
+
+PY311="$(resolve_python /usr/local/bin/py311 /opt/nix/envs/base/bin/python)"
+PY312="$(resolve_python /usr/local/bin/py312 /opt/nix/envs/base-py312/bin/python)"
+PY313="$(resolve_python /usr/local/bin/py313 /opt/nix/envs/base-py313/bin/python)"
+
 echo "--- Python ---"
-/usr/local/bin/py311 -V
-/usr/local/bin/py312 -V
-/usr/local/bin/py313 -V
+"$PY311" -V
+"$PY312" -V
+"$PY313" -V
 
 echo "--- PySpark imports (all 3 Pythons) ---"
-/usr/local/bin/py311 -c "import pyspark; print('PySpark', pyspark.__version__)"
-/usr/local/bin/py312 -c "import pyspark; print('PySpark', pyspark.__version__)"
-/usr/local/bin/py313 -c "import pyspark; print('PySpark', pyspark.__version__)"
+"$PY311" -c "import pyspark; print('PySpark', pyspark.__version__)"
+"$PY312" -c "import pyspark; print('PySpark', pyspark.__version__)"
+"$PY313" -c "import pyspark; print('PySpark', pyspark.__version__)"
 
 echo "--- Layered base-package imports (all 3 Pythons) ---"
-/usr/local/bin/py311 -c "import jupyterlab, onnxruntime, cv2, skimage; print('py311 layered wheels OK')"
-/usr/local/bin/py312 -c "import jupyterlab, onnxruntime, cv2, skimage; print('py312 layered wheels OK')"
-/usr/local/bin/py313 -c "import jupyterlab, onnxruntime, cv2, skimage; print('py313 layered wheels OK')"
+"$PY311" -c "import jupyterlab, onnxruntime, cv2, skimage; print('py311 layered wheels OK')"
+"$PY312" -c "import jupyterlab, onnxruntime, cv2, skimage; print('py312 layered wheels OK')"
+"$PY313" -c "import jupyterlab, onnxruntime, cv2, skimage; print('py313 layered wheels OK')"
 
 echo "--- Java / Spark ---"
 java -version
@@ -229,8 +245,24 @@ if [[ "$TIER" == "pro" ]]; then
   ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" bash -s << 'SSHEOF'
 set -euo pipefail
 
+resolve_python() {
+  local preferred="$1" fallback="$2"
+  if [[ -x "$preferred" ]]; then
+    printf '%s\n' "$preferred"
+  elif [[ -x "$fallback" ]]; then
+    printf '%s\n' "$fallback"
+  else
+    echo "ERROR: no Python found at $preferred or $fallback" >&2
+    exit 1
+  fi
+}
+
+PY311="$(resolve_python /usr/local/bin/py311 /opt/nix/envs/pro/bin/python)"
+PY312="$(resolve_python /usr/local/bin/py312 /opt/nix/envs/pro-py312/bin/python)"
+PY313="$(resolve_python /usr/local/bin/py313 /opt/nix/envs/pro-py313/bin/python)"
+
 echo "--- ML stack imports + minimal compute ---"
-for PY in /usr/local/bin/py311 /usr/local/bin/py312 /usr/local/bin/py313; do
+for PY in "$PY311" "$PY312" "$PY313"; do
   $PY -c "
 import torch, xgboost, lightgbm, mlflow
 x = torch.randn(64, 64); _ = x @ x.T
@@ -242,13 +274,13 @@ print('MLflow', mlflow.__version__)
 done
 
 echo "--- TensorFlow + Transformers ---"
-/usr/local/bin/py311 -c "
+"$PY311" -c "
 import tensorflow as tf, transformers
 x = tf.constant([[1., 2.], [3., 4.]]); _ = tf.linalg.matmul(x, x)
 print('TensorFlow', tf.__version__, '(matmul OK)')
 print('Transformers', transformers.__version__)
 "
-/usr/local/bin/py312 -c "import tensorflow as tf; print('TF py312', tf.__version__)"
+"$PY312" -c "import tensorflow as tf; print('TF py312', tf.__version__)"
 SSHEOF
 fi
 
