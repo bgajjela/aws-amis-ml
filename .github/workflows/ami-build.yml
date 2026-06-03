@@ -51,6 +51,10 @@ on:
       existing_x86_base_ami_id:
         description: 'Optional existing x86 base AMI ID to test/reuse instead of rebuilding base'
         default: ''
+      direct_x86_pro_from_existing_base:
+        description: 'Skip x86 base guard/test and build pro directly from existing_x86_base_ami_id'
+        type: boolean
+        default: false
       version_tag:
         description: 'Release tag to apply to built AMIs (e.g. v1.0.1)'
         default: ''
@@ -143,6 +147,18 @@ jobs:
             -var base_ami_id=ami-00000000000000000 \
             -var base_ami_id_arm=ami-00000000000000000 \
             .
+
+      - name: Validate direct x86 pro inputs
+        if: ${{ github.event.inputs.direct_x86_pro_from_existing_base == 'true' }}
+        run: |
+          if [[ "${{ github.event.inputs.target }}" != "pro" ]]; then
+            echo "ERROR: direct_x86_pro_from_existing_base requires target=pro"
+            exit 1
+          fi
+          if [[ -z "${{ github.event.inputs.existing_x86_base_ami_id }}" ]]; then
+            echo "ERROR: direct_x86_pro_from_existing_base requires existing_x86_base_ami_id"
+            exit 1
+          fi
 
 # ── x86 base ────────────────────────────────────────────────────────────────
   build-x86-base:
@@ -334,6 +350,7 @@ jobs:
     if: |
       always() &&
       needs.validate.result == 'success' &&
+      github.event.inputs.direct_x86_pro_from_existing_base != 'true' &&
       contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
       (
         github.event.inputs.existing_x86_base_ami_id != '' ||
@@ -385,6 +402,7 @@ jobs:
     if: |
       always() &&
       needs.validate.result == 'success' &&
+      github.event.inputs.direct_x86_pro_from_existing_base != 'true' &&
       needs.guard-x86-base-test-contract.result == 'success' &&
       contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
       (
@@ -472,9 +490,19 @@ jobs:
 # ── x86 pro ─────────────────────────────────────────────────────────────────
   build-x86-pro:
     name: Build x86 pro AMI
-    needs: test-x86-base
+    needs: [validate, test-x86-base]
     environment: production
-    if: needs.test-x86-base.result == 'success' && (inputs.target == 'pro' || github.event.inputs.target == 'pro')
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      (inputs.target == 'pro' || github.event.inputs.target == 'pro') &&
+      (
+        (
+          github.event.inputs.direct_x86_pro_from_existing_base == 'true' &&
+          github.event.inputs.existing_x86_base_ami_id != ''
+        ) ||
+        needs.test-x86-base.result == 'success'
+      )
     runs-on: ubuntu-22.04
     timeout-minutes: 75
     outputs:
@@ -608,13 +636,18 @@ jobs:
         id: packer
         run: |
           set +e
+          BASE_AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
+          if [[ "${{ github.event.inputs.direct_x86_pro_from_existing_base }}" != "true" ]]; then
+            BASE_AMI_ID="${{ needs.test-x86-base.outputs.ami_id }}"
+          fi
+          [[ -z "$BASE_AMI_ID" || "$BASE_AMI_ID" == "None" ]] && { echo "ERROR: base AMI ID not found"; exit 1; }
           packer init .
           packer build \
             -machine-readable \
             -only=cpu-ds-ml-pro.amazon-ebs.ubuntu_pro \
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
-            -var "base_ami_id=${{ needs.test-x86-base.outputs.ami_id }}" \
+            -var "base_ami_id=${BASE_AMI_ID}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
             -var "openscap_url=${{ steps.openscap.outputs.url }}" \
