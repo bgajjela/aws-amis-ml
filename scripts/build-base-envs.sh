@@ -39,23 +39,15 @@ _runtime_lib_path() {
 }
 
 _write_python_wrapper() {
-  local py_bin="$1" cache_site="$2" dst="$3" runtime_lib_path="$4"
+  local py_bin="$1" dst="$2" runtime_lib_path="$3"
   sudo tee "${dst}" >/dev/null <<WRAPPER
 #!/bin/sh
 RUNTIME_LIB_PATH="${runtime_lib_path}"
-CACHE_SITE="${cache_site}"
 if [ -n "\${RUNTIME_LIB_PATH}" ]; then
   if [ -n "\${LD_LIBRARY_PATH:-}" ]; then
     export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}:\${LD_LIBRARY_PATH}"
   else
     export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}"
-  fi
-fi
-if [ -n "\${CACHE_SITE}" ]; then
-  if [ -n "\${PYTHONPATH:-}" ]; then
-    export PYTHONPATH="\${CACHE_SITE}:\${PYTHONPATH}"
-  else
-    export PYTHONPATH="\${CACHE_SITE}"
   fi
 fi
 exec "${py_bin}" "\$@"
@@ -163,7 +155,7 @@ PY
   echo "  [${label}] smoke test..."
   runtime_lib_path="$(_runtime_lib_path)"
   smoke_wrapper="/tmp/${label}-smoke-python"
-  _write_python_wrapper "${final_env}/bin/python" "${cache_site}" "${smoke_wrapper}" "${runtime_lib_path}"
+  _write_python_wrapper "${final_env}/bin/python" "${smoke_wrapper}" "${runtime_lib_path}"
   "${smoke_wrapper}" -c "
 import numpy, scipy, pandas, sklearn, matplotlib, seaborn
 import pyarrow, polars, PIL, fastapi, uvicorn, pyspark
@@ -246,12 +238,6 @@ for ver_env in "311:${ENVS}/base" "312:${ENVS}/base-py312" "313:${ENVS}/base-py3
   ver="${ver_env%%:*}"
   env_path="${ver_env##*:}"
   dst="/usr/local/bin/py${ver}"
-  cache_path="${CACHE_ENVS}/base"
-  cache_site=""
-  case "${ver}" in
-    312) cache_path="${CACHE_ENVS}/base-py312" ;;
-    313) cache_path="${CACHE_ENVS}/base-py313" ;;
-  esac
   if [[ -x "${env_path}/bin/python" ]]; then
     py_bin="${env_path}/bin/python"
   else
@@ -259,12 +245,7 @@ for ver_env in "311:${ENVS}/base" "312:${ENVS}/base-py312" "313:${ENVS}/base-py3
   fi
 
   if [[ -n "${py_bin:-}" && -x "${py_bin}" ]]; then
-    cache_site="$("${cache_path}/bin/python" - <<'PY'
-import site
-print(site.getsitepackages()[0])
-PY
-)"
-    _write_python_wrapper "${py_bin}" "${cache_site}" "${dst}" "${RUNTIME_LIB_PATH}"
+    _write_python_wrapper "${py_bin}" "${dst}" "${RUNTIME_LIB_PATH}"
     echo "  ${dst} (wrapper -> ${py_bin})"
   else
     echo "  WARN: no python binary found in ${env_path}/bin — skipping ${dst}"

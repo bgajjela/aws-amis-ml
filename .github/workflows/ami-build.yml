@@ -227,9 +227,36 @@ jobs:
         run: |
           SUBNET="${{ secrets.PACKER_SUBNET_ID }}"
           if [[ -z "$SUBNET" ]]; then
-            SUBNET=$(aws ec2 describe-subnets \
-              --filters Name=defaultForAz,Values=true \
-              --query 'Subnets[0].SubnetId' --output text)
+            INSTANCE_TYPE="c6i.xlarge"
+            OFFERED_AZS="$(aws ec2 describe-instance-type-offerings \
+              --location-type availability-zone \
+              --filters Name=instance-type,Values="${INSTANCE_TYPE}" \
+              --query 'InstanceTypeOfferings[].Location' \
+              --output text)"
+
+            while read -r subnet_id az available_ips; do
+              [[ -z "${subnet_id:-}" ]] && continue
+              if grep -qw "$az" <<<"$OFFERED_AZS"; then
+                SUBNET="$subnet_id"
+                echo "Selected subnet $subnet_id in $az for ${INSTANCE_TYPE} (${available_ips} free IPs)."
+                break
+              fi
+            done < <(
+              aws ec2 describe-subnets \
+                --filters \
+                  Name=state,Values=available \
+                  Name=map-public-ip-on-launch,Values=true \
+                --query 'Subnets[].{id:SubnetId,az:AvailabilityZone,ips:AvailableIpAddressCount}' \
+                --output text \
+                | sort -k3,3nr
+            )
+
+            if [[ -z "$SUBNET" ]]; then
+              SUBNET=$(aws ec2 describe-subnets \
+                --filters Name=defaultForAz,Values=true \
+                --query 'Subnets[0].SubnetId' --output text)
+              echo "No subnet matched advertised ${INSTANCE_TYPE} capacity; falling back to ${SUBNET}."
+            fi
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
@@ -524,9 +551,36 @@ jobs:
         run: |
           SUBNET="${{ secrets.PACKER_SUBNET_ID }}"
           if [[ -z "$SUBNET" ]]; then
-            SUBNET=$(aws ec2 describe-subnets \
-              --filters Name=defaultForAz,Values=true \
-              --query 'Subnets[0].SubnetId' --output text)
+            INSTANCE_TYPE="c6i.xlarge"
+            OFFERED_AZS="$(aws ec2 describe-instance-type-offerings \
+              --location-type availability-zone \
+              --filters Name=instance-type,Values="${INSTANCE_TYPE}" \
+              --query 'InstanceTypeOfferings[].Location' \
+              --output text)"
+
+            while read -r subnet_id az available_ips; do
+              [[ -z "${subnet_id:-}" ]] && continue
+              if grep -qw "$az" <<<"$OFFERED_AZS"; then
+                SUBNET="$subnet_id"
+                echo "Selected subnet $subnet_id in $az for ${INSTANCE_TYPE} (${available_ips} free IPs)."
+                break
+              fi
+            done < <(
+              aws ec2 describe-subnets \
+                --filters \
+                  Name=state,Values=available \
+                  Name=map-public-ip-on-launch,Values=true \
+                --query 'Subnets[].{id:SubnetId,az:AvailabilityZone,ips:AvailableIpAddressCount}' \
+                --output text \
+                | sort -k3,3nr
+            )
+
+            if [[ -z "$SUBNET" ]]; then
+              SUBNET=$(aws ec2 describe-subnets \
+                --filters Name=defaultForAz,Values=true \
+                --query 'Subnets[0].SubnetId' --output text)
+              echo "No subnet matched advertised ${INSTANCE_TYPE} capacity; falling back to ${SUBNET}."
+            fi
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
@@ -806,7 +860,12 @@ jobs:
   cleanup-orphans:
     name: Terminate orphaned test instances
     needs: [test-x86-base, test-x86-pro]
-    if: always()
+    if: |
+      always() &&
+      (
+        needs.test-x86-base.result != 'skipped' ||
+        needs.test-x86-pro.result != 'skipped'
+      )
     runs-on: ubuntu-22.04
     environment: production
     timeout-minutes: 10
@@ -969,7 +1028,17 @@ jobs:
           echo "Deleted $DELETED orphaned snapshot(s)."
 
       - name: Trigger OpenSCAP compliance report
-        if: success()
+        if: |
+          needs.build-x86-base.result == 'success' &&
+          needs.test-x86-base.result == 'success' &&
+          (
+            needs.build-x86-pro.result == 'success' ||
+            needs.build-x86-pro.result == 'skipped'
+          ) &&
+          (
+            needs.test-x86-pro.result == 'success' ||
+            needs.test-x86-pro.result == 'skipped'
+          )
         run: |
           echo "✅ All AMI builds and tests successful!"
           echo ""
