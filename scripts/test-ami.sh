@@ -47,10 +47,6 @@ VPC_ID=$(aws ec2 describe-vpcs \
   --filters Name=isDefault,Values=true \
   --query 'Vpcs[0].VpcId' --output text --region "$REGION")
 
-SUBNET_ID=$(aws ec2 describe-subnets \
-  --filters "Name=vpc-id,Values=${VPC_ID}" "Name=defaultForAz,Values=true" \
-  --query 'Subnets[0].SubnetId' --output text --region "$REGION")
-
 # Validate checkip response is a bare IPv4 before using it as a CIDR
 _RAW_IP=$(curl -sf --max-time 5 https://checkip.amazonaws.com)
 if ! [[ "$_RAW_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
@@ -107,20 +103,86 @@ else
   INSTANCE_TYPE="c6i.xlarge"
 fi
 
+resolve_candidate_subnets() {
+  local instance_type="$1"
+  local configured_subnet="${TEST_SUBNET_ID:-${PACKER_SUBNET_ID:-}}"
+
+  if [[ -n "$configured_subnet" ]]; then
+    printf '%s\n' "$configured_subnet"
+    return 0
+  fi
+
+  local offered_azs
+  offered_azs="$(aws ec2 describe-instance-type-offerings \
+    --region "$REGION" \
+    --location-type availability-zone \
+    --filters "Name=instance-type,Values=${instance_type}" \
+    --query 'InstanceTypeOfferings[].Location' \
+    --output text)"
+
+  local matched=0
+  while read -r subnet_id az available_ips; do
+    [[ -z "${subnet_id:-}" ]] && continue
+    if grep -qw "$az" <<<"$offered_azs"; then
+      printf '%s\n' "$subnet_id"
+      matched=1
+    fi
+  done < <(
+    aws ec2 describe-subnets \
+      --region "$REGION" \
+      --filters \
+        "Name=vpc-id,Values=${VPC_ID}" \
+        "Name=state,Values=available" \
+        "Name=map-public-ip-on-launch,Values=true" \
+      --query 'Subnets[].{id:SubnetId,az:AvailabilityZone,ips:AvailableIpAddressCount}' \
+      --output text \
+      | sort -k3,3nr
+  )
+
+  if [[ $matched -eq 0 ]]; then
+    aws ec2 describe-subnets \
+      --region "$REGION" \
+      --filters \
+        "Name=vpc-id,Values=${VPC_ID}" \
+        "Name=defaultForAz,Values=true" \
+      --query 'Subnets[].SubnetId' \
+      --output text \
+      | tr '\t' '\n'
+  fi
+}
+
 # ── Launch ────────────────────────────────────────────────────────────────────
 echo "Launching ${INSTANCE_TYPE} from selected AMI (arch=${ARCH} tier=${TIER})..."
-INSTANCE_ID=$(aws ec2 run-instances \
-  --image-id "$AMI_ID" \
-  --instance-type "$INSTANCE_TYPE" \
-  --key-name "$KEY_NAME" \
-  --security-group-ids "$TMP_SG_ID" \
-  --subnet-id "$SUBNET_ID" \
-  --associate-public-ip-address \
-  --metadata-options 'HttpTokens=required,HttpEndpoint=enabled,HttpPutResponseHopLimit=1' \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=ami-test-${STAMP}},{Key=Purpose,Value=ami-ci-test}]" \
-  --region "$REGION" \
-  --query 'Instances[0].InstanceId' --output text)
-echo "::add-mask::${INSTANCE_ID}"
+LAUNCH_ERROR=""
+while read -r SUBNET_ID; do
+  [[ -z "${SUBNET_ID:-}" ]] && continue
+  echo "::add-mask::${SUBNET_ID}"
+  echo "Trying subnet ${SUBNET_ID}..."
+  if INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id "$AMI_ID" \
+    --instance-type "$INSTANCE_TYPE" \
+    --key-name "$KEY_NAME" \
+    --security-group-ids "$TMP_SG_ID" \
+    --subnet-id "$SUBNET_ID" \
+    --associate-public-ip-address \
+    --metadata-options 'HttpTokens=required,HttpEndpoint=enabled,HttpPutResponseHopLimit=1' \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=ami-test-${STAMP}},{Key=Purpose,Value=ami-ci-test}]" \
+    --region "$REGION" \
+    --query 'Instances[0].InstanceId' --output text 2>/tmp/ami-test-launch.err); then
+    echo "::add-mask::${INSTANCE_ID}"
+    break
+  fi
+
+  LAUNCH_ERROR="$(cat /tmp/ami-test-launch.err)"
+  echo "Launch failed in ${SUBNET_ID}: ${LAUNCH_ERROR}" >&2
+  INSTANCE_ID=""
+done < <(resolve_candidate_subnets "$INSTANCE_TYPE")
+
+if [[ -z "$INSTANCE_ID" ]]; then
+  echo "ERROR: unable to launch ${INSTANCE_TYPE} in any candidate subnet." >&2
+  [[ -n "$LAUNCH_ERROR" ]] && echo "$LAUNCH_ERROR" >&2
+  exit 1
+fi
 
 echo "Waiting for $INSTANCE_ID to be running..."
 aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$REGION"
