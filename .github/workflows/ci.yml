@@ -575,20 +575,3 @@ jobs:
           echo ""
           echo "Estimated cost/time now depends on whether you run the x86 or ARM64 workflow."
           echo "════════════════════════════════════════════════════════════════"
-
-      - name: Trigger Nix Cache Pre-build workflow
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "Triggering build-nix-cache.yml..."
-          gh workflow run build-nix-cache.yml \
-            --ref main
-          echo ""
-          echo "✅ Nix cache pre-build triggered!"
-          echo "This will:"
-          echo "  1. Build the cache workflow payload"
-          echo "  2. Upload to Cachix binary cache"
-          echo "  3. Leave AMI x86/ARM64 workflows available for manual dispatch"
-          echo ""
-          echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/build-nix-cache.yml"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

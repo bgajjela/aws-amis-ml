@@ -30,6 +30,40 @@ _nix_bg() {
      >\"${log}\" 2>&1" &
 }
 
+_runtime_lib_path() {
+  find /nix/store \
+    -type f \
+    \( -name 'libstdc++.so.6*' -o -name 'libgomp.so.1*' \) \
+    -print 2>/dev/null \
+    | xargs -I{} dirname {} 2>/dev/null \
+    | awk 'NF' | sort -u | paste -sd: -
+}
+
+_write_python_wrapper() {
+  local py_bin="$1" cache_site="$2" dst="$3" runtime_lib_path="$4"
+  sudo tee "${dst}" >/dev/null <<WRAPPER
+#!/bin/sh
+RUNTIME_LIB_PATH="${runtime_lib_path}"
+CACHE_SITE="${cache_site}"
+if [ -n "\${RUNTIME_LIB_PATH}" ]; then
+  if [ -n "\${LD_LIBRARY_PATH:-}" ]; then
+    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}:\${LD_LIBRARY_PATH}"
+  else
+    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}"
+  fi
+fi
+if [ -n "\${CACHE_SITE}" ]; then
+  if [ -n "\${PYTHONPATH:-}" ]; then
+    export PYTHONPATH="\${CACHE_SITE}:\${PYTHONPATH}"
+  else
+    export PYTHONPATH="\${CACHE_SITE}"
+  fi
+fi
+exec "${py_bin}" "\$@"
+WRAPPER
+  sudo chmod 755 "${dst}"
+}
+
 # ── Launch all builds in parallel ────────────────────────────────────────────
 echo "=== Launching parallel Nix cache builds ==="
 
@@ -85,7 +119,7 @@ fi
 # ── Layer heavy wheels on top of the cached Nix envs ─────────────────────────
 _layer_base() {
   local label="$1" cache_env="$2" final_env="$3"
-  local cache_site final_site
+  local cache_site final_site smoke_wrapper runtime_lib_path
   echo "=== [${label}] layering wheels onto ${final_env} (arch: ${ARCH}) ==="
 
   sudo rm -rf "${final_env}"
@@ -123,18 +157,22 @@ PY
     polars \
     jupyterlab \
     onnxruntime \
-    opencv-python \
+    opencv-python-headless \
     scikit-image \
     --quiet
 
   echo "  [${label}] smoke test..."
-  "${final_env}/bin/python" -c "
+  runtime_lib_path="$(_runtime_lib_path)"
+  smoke_wrapper="/tmp/${label}-smoke-python"
+  _write_python_wrapper "${final_env}/bin/python" "${cache_site}" "${smoke_wrapper}" "${runtime_lib_path}"
+  "${smoke_wrapper}" -c "
 import numpy, scipy, pandas, sklearn, matplotlib, seaborn
 import pyarrow, polars, PIL, fastapi, uvicorn, pyspark
 import jupyterlab, onnxruntime, cv2, skimage
 print('  numpy=' + numpy.__version__ + ' pandas=' + pandas.__version__ + \
       ' polars=' + polars.__version__ + ' onnxruntime=' + onnxruntime.__version__)
 "
+  sudo rm -f "${smoke_wrapper}"
   echo "=== [${label}] DONE ==="
 }
 
@@ -198,57 +236,23 @@ _link "${LANGS}/cargo/bin/cargo"         /usr/local/bin/cargo
 _link "${LANGS}/nodejs/bin/node"         /usr/local/bin/node
 _link "${LANGS}/nodejs/bin/npm"          /usr/local/bin/npm
 
-# Keep the GNU C++ runtime discoverable for pip wheels that dlopen C++ extensions.
-sudo tee /etc/ld.so.conf.d/cpu-ds-ml.conf >/dev/null <<'EOF'
-/usr/lib/x86_64-linux-gnu
-/lib/x86_64-linux-gnu
-/usr/lib/aarch64-linux-gnu
-/lib/aarch64-linux-gnu
-EOF
-sudo ldconfig
-
 # Wheel-backed Python extensions need their runtime library search path set
 # before the interpreter process starts. Doing this from sitecustomize.py is
 # too late for dlopen() resolution. Bake the relevant directories into small
 # launcher wrappers instead.
-RUNTIME_LIB_PATH="$(
-  {
-    printf '%s\n' \
-      /usr/lib/x86_64-linux-gnu \
-      /lib/x86_64-linux-gnu \
-      /usr/lib/aarch64-linux-gnu \
-      /lib/aarch64-linux-gnu
-    find /nix/store \
-      \( -name 'libstdc++.so.6*' -o -name 'libgomp.so.1*' -o -name 'libzmq.so*' \) \
-      -type f -exec dirname {} \; 2>/dev/null || true
-  } | while IFS= read -r dir; do
-        [[ -d "${dir}" ]] && printf '%s\n' "${dir}"
-      done | awk 'NF && !seen[$0]++' | paste -sd: -
-)"
+RUNTIME_LIB_PATH="$(_runtime_lib_path)"
 echo "  runtime library path: ${RUNTIME_LIB_PATH}"
-
-_python_wrapper() {
-  local py_bin="$1" dst="$2"
-  sudo tee "${dst}" >/dev/null <<WRAPPER
-#!/bin/sh
-RUNTIME_LIB_PATH="${RUNTIME_LIB_PATH}"
-if [ -n "\${RUNTIME_LIB_PATH}" ]; then
-  if [ -n "\${LD_LIBRARY_PATH:-}" ]; then
-    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}:\${LD_LIBRARY_PATH}"
-  else
-    export LD_LIBRARY_PATH="\${RUNTIME_LIB_PATH}"
-  fi
-fi
-exec "${py_bin}" "\$@"
-WRAPPER
-  sudo chmod 755 "${dst}"
-  echo "  ${dst} (wrapper -> ${py_bin})"
-}
 
 for ver_env in "311:${ENVS}/base" "312:${ENVS}/base-py312" "313:${ENVS}/base-py313"; do
   ver="${ver_env%%:*}"
   env_path="${ver_env##*:}"
   dst="/usr/local/bin/py${ver}"
+  cache_path="${CACHE_ENVS}/base"
+  cache_site=""
+  case "${ver}" in
+    312) cache_path="${CACHE_ENVS}/base-py312" ;;
+    313) cache_path="${CACHE_ENVS}/base-py313" ;;
+  esac
   if [[ -x "${env_path}/bin/python" ]]; then
     py_bin="${env_path}/bin/python"
   else
@@ -256,7 +260,13 @@ for ver_env in "311:${ENVS}/base" "312:${ENVS}/base-py312" "313:${ENVS}/base-py3
   fi
 
   if [[ -n "${py_bin:-}" && -x "${py_bin}" ]]; then
-    _python_wrapper "${py_bin}" "${dst}"
+    cache_site="$("${cache_path}/bin/python" - <<'PY'
+import site
+print(site.getsitepackages()[0])
+PY
+)"
+    _write_python_wrapper "${py_bin}" "${cache_site}" "${dst}" "${RUNTIME_LIB_PATH}"
+    echo "  ${dst} (wrapper -> ${py_bin})"
   else
     echo "  WARN: no python binary found in ${env_path}/bin — skipping ${dst}"
   fi
