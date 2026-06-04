@@ -171,7 +171,7 @@ jobs:
             .
 
       - name: Checkov — Packer IaC misconfiguration scan
-        uses: bridgecrewio/checkov-action@37026823bd2a0a70f8aedd88f8a3e9cb342418af  # v12
+        uses: bridgecrewio/checkov-action@dfb51aed1b783289b0d3f255028e7a88d5e8caa1  # v12
         with:
           file: packer.pkr.hcl
           framework: terraform
