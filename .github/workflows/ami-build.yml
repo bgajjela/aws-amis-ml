@@ -51,8 +51,15 @@ on:
       existing_x86_base_ami_id:
         description: 'Optional existing x86 base AMI ID to test/reuse instead of rebuilding base'
         default: ''
+      existing_x86_pro_ami_id:
+        description: 'Optional existing x86 pro AMI ID to test/tag instead of rebuilding pro'
+        default: ''
       direct_x86_pro_from_existing_base:
         description: 'Skip x86 base guard/test and build pro directly from existing_x86_base_ami_id'
+        type: boolean
+        default: false
+      direct_x86_test_from_existing_pro:
+        description: 'Skip x86 base/pro build steps and test/tag directly from existing_x86_pro_ami_id'
         type: boolean
         default: false
       version_tag:
@@ -160,12 +167,24 @@ jobs:
             exit 1
           fi
 
+      - name: Validate direct x86 pro test inputs
+        if: ${{ github.event.inputs.direct_x86_test_from_existing_pro == 'true' }}
+        run: |
+          if [[ "${{ github.event.inputs.target }}" != "pro" ]]; then
+            echo "ERROR: direct_x86_test_from_existing_pro requires target=pro"
+            exit 1
+          fi
+          if [[ -z "${{ github.event.inputs.existing_x86_pro_ami_id }}" ]]; then
+            echo "ERROR: direct_x86_test_from_existing_pro requires existing_x86_pro_ami_id"
+            exit 1
+          fi
+
 # ── x86 base ────────────────────────────────────────────────────────────────
   build-x86-base:
     name: Build x86 base AMI
     needs: validate
     environment: production
-    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.existing_x86_base_ami_id == ''
+    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.existing_x86_base_ami_id == '' && github.event.inputs.direct_x86_test_from_existing_pro != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 75
     outputs:
@@ -351,6 +370,7 @@ jobs:
       always() &&
       needs.validate.result == 'success' &&
       github.event.inputs.direct_x86_pro_from_existing_base != 'true' &&
+      github.event.inputs.direct_x86_test_from_existing_pro != 'true' &&
       contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
       (
         github.event.inputs.existing_x86_base_ami_id != '' ||
@@ -403,6 +423,7 @@ jobs:
       always() &&
       needs.validate.result == 'success' &&
       github.event.inputs.direct_x86_pro_from_existing_base != 'true' &&
+      github.event.inputs.direct_x86_test_from_existing_pro != 'true' &&
       needs.guard-x86-base-test-contract.result == 'success' &&
       contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
       (
@@ -495,6 +516,7 @@ jobs:
     if: |
       always() &&
       needs.validate.result == 'success' &&
+      github.event.inputs.direct_x86_test_from_existing_pro != 'true' &&
       (inputs.target == 'pro' || github.event.inputs.target == 'pro') &&
       (
         (
@@ -681,8 +703,19 @@ jobs:
 
   test-x86-pro:
     name: Test x86 pro AMI
-    needs: build-x86-pro
+    needs: [validate, build-x86-pro]
     environment: production
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      github.event.inputs.target == 'pro' &&
+      (
+        (
+          github.event.inputs.direct_x86_test_from_existing_pro == 'true' &&
+          github.event.inputs.existing_x86_pro_ami_id != ''
+        ) ||
+        needs.build-x86-pro.result == 'success'
+      )
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -749,14 +782,23 @@ jobs:
       - name: Run AMI tests — x86 pro
         run: |
           chmod +x scripts/test-ami.sh
+          AMI_ID="${{ github.event.inputs.existing_x86_pro_ami_id }}"
+          if [[ "${{ github.event.inputs.direct_x86_test_from_existing_pro }}" != "true" ]]; then
+            AMI_ID="${{ needs.build-x86-pro.outputs.ami_id }}"
+          fi
           scripts/test-ami.sh \
-            "${{ needs.build-x86-pro.outputs.ami_id }}" \
+            "${AMI_ID}" \
             x86_64 \
             pro
 
       - name: Pass AMI ID to tag job
         id: passthrough
-        run: echo "ami_id=${{ needs.build-x86-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+        run: |
+          AMI_ID="${{ github.event.inputs.existing_x86_pro_ami_id }}"
+          if [[ "${{ github.event.inputs.direct_x86_test_from_existing_pro }}" != "true" ]]; then
+            AMI_ID="${{ needs.build-x86-pro.outputs.ami_id }}"
+          fi
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
 
 # ── Tag AMIs ─────────────────────────────────────────────────────────────────
   tag-release:
