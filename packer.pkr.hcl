@@ -219,17 +219,19 @@ build {
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1 software-properties-common",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      # OpenSCAP scanner is delivered from our pre-built bundle; Ubuntu 22.04
-      # SSG content is installed from .deb packages because the current apt
-      # repos on target instances do not expose ssg-debderived reliably.
+      # OpenSCAP scanner comes from Ubuntu repos once universe is enabled.
+      # Ubuntu 22.04 SSG content is installed from .deb packages because the
+      # current target-image repos do not expose ssg-debderived reliably.
       # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
       # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
-      # OpenSCAP binary bundle plus Ubuntu 22.04 SSG content — required for ami-scan --cis
-      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'ERROR: OpenSCAP URL not provided'; exit 1"}",
+      "sudo add-apt-repository main",
+      "sudo add-apt-repository universe",
+      "sudo apt-get update",
+      "sudo apt-get -y install libopenscap8",
       "curl -fsSL -o /tmp/ssg-base.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-base_0.1.80-1_all.deb",
       "curl -fsSL -o /tmp/ssg-debderived.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-debderived_0.1.80-1_all.deb",
       "sudo dpkg -i /tmp/ssg-base.deb /tmp/ssg-debderived.deb",
@@ -482,15 +484,17 @@ build {
     inline = [
       "echo 'Resumed after reboot — kernel: $(uname -r)'",
       "sudo apt-get update",
-      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1",
+      "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1 software-properties-common",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      # OpenSCAP scanner is delivered from our pre-built bundle; Ubuntu 22.04
-      # SSG content is installed from .deb packages because the current apt
-      # repos on target instances do not expose ssg-debderived reliably.
+      # OpenSCAP scanner comes from Ubuntu repos once universe is enabled.
+      # Ubuntu 22.04 SSG content is installed from .deb packages because the
+      # current target-image repos do not expose ssg-debderived reliably.
       # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
-      # OpenSCAP binary bundle plus Ubuntu 22.04 SSG content — required for ami-scan --cis
-      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'ERROR: OpenSCAP URL not provided'; exit 1"}",
+      "sudo add-apt-repository main",
+      "sudo add-apt-repository universe",
+      "sudo apt-get update",
+      "sudo apt-get -y install libopenscap8",
       "curl -fsSL -o /tmp/ssg-base.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-base_0.1.80-1_all.deb",
       "curl -fsSL -o /tmp/ssg-debderived.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-debderived_0.1.80-1_all.deb",
       "sudo dpkg -i /tmp/ssg-base.deb /tmp/ssg-debderived.deb",
