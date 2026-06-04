@@ -221,13 +221,21 @@ build {
       # unzip + gnupg needed for AWS CLI v2 download and PGP verification; awscli (v1, EOL) replaced by v2 below
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
+      # OpenSCAP scanner is delivered from our pre-built bundle; Ubuntu 22.04
+      # SSG content is installed from .deb packages because the current apt
+      # repos on target instances do not expose ssg-debderived reliably.
       # amazon-ssm-agent is not in Ubuntu 22.04 apt repos — download .deb directly from AWS
       # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       # Trivy — pinned version, installed to /usr/local/bin so ami-scan can call it
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
-      # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
-      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C / && echo 'OpenSCAP installed' || echo 'WARNING: OpenSCAP install failed, continuing without it'" : "echo 'OpenSCAP URL not provided, skipping'"}",
+      # OpenSCAP binary bundle plus Ubuntu 22.04 SSG content — required for ami-scan --cis
+      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'ERROR: OpenSCAP URL not provided'; exit 1"}",
+      "curl -fsSL -o /tmp/ssg-base.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-base_0.1.80-1_all.deb",
+      "curl -fsSL -o /tmp/ssg-debderived.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-debderived_0.1.80-1_all.deb",
+      "sudo dpkg -i /tmp/ssg-base.deb /tmp/ssg-debderived.deb",
+      "rm -f /tmp/ssg-base.deb /tmp/ssg-debderived.deb",
+      "command -v oscap >/dev/null",
+      "test -f /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml",
       "sudo systemctl enable auditd chrony unattended-upgrades",
       "sudo systemctl enable amazon-ssm-agent 2>/dev/null || true",  # Optional, may not have installed
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
@@ -273,6 +281,10 @@ build {
   provisioner "file" {
     source      = "scripts/ami-scan.sh"
     destination = "/home/ubuntu/packer-assets/ami-scan.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/fix-level1-base.sh"
+    destination = "/home/ubuntu/packer-assets/fix-level1-base.sh"
   }
   provisioner "file" {
     source      = "examples/pyspark_basic.py"
@@ -332,6 +344,7 @@ build {
     inline = [
       "sudo systemctl daemon-reload",
       "sudo bash /tmp/harden.sh",
+      "test -f /home/ubuntu/packer-assets/fix-level1-base.sh && sudo bash /home/ubuntu/packer-assets/fix-level1-base.sh || echo 'fix-level1-base.sh not found'",
       "test -f /home/ubuntu/packer-assets/spark-java.sh && sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh || echo 'spark-java.sh not found, will use defaults'",
       "test -f /home/ubuntu/packer-assets/ami-scan.sh && sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan || echo 'ami-scan.sh not found'",
       # Spark local dir on EBS — keeps shuffle data off tmpfs (/tmp is noexec + size-capped)
@@ -391,18 +404,23 @@ build {
     source      = "scripts/smoke-pro.sh"
     destination = "/tmp/smoke-pro.sh"
   }
+  provisioner "file" {
+    source      = "scripts/fix-level2-addon.sh"
+    destination = "/tmp/fix-level2-addon.sh"
+  }
 
   provisioner "shell" {
     # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
     # bash so the interpreter reads it (no exec() on the noexec file).
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
-      "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
+      "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh /tmp/fix-level2-addon.sh",
       # build-pro-envs.sh: venv --system-site-packages on base Nix envs,
       # then pip install torch/tf/transformers CPU wheels (~15-20 min total)
       "sudo bash /tmp/build-pro-envs.sh",
       # tune-pro.sh: ML-specific kernel + THP + limits tuning (run after envs are built)
       "sudo bash /tmp/tune-pro.sh",
+      "sudo bash /tmp/fix-level2-addon.sh",
       # Compute smoke tests: torch matmul+autograd, TF matmul, XGBoost/LightGBM fit,
       # PySpark session — verifies BLAS linkage and framework compute, not just imports.
       # Runs all three Python versions. Aborts the build if any check fails.
@@ -466,11 +484,19 @@ build {
       "sudo apt-get update",
       "sudo apt-get -y install curl jq git-lfs unzip gnupg build-essential python3-venv ca-certificates xz-utils libstdc++6 libgomp1",
       "sudo apt-get -y install ufw auditd fail2ban unattended-upgrades logrotate chrony",
-      # OpenSCAP scanner not available in Ubuntu 22.04 repos — ami-scan.sh skips CIS scan gracefully
+      # OpenSCAP scanner is delivered from our pre-built bundle; Ubuntu 22.04
+      # SSG content is installed from .deb packages because the current apt
+      # repos on target instances do not expose ssg-debderived reliably.
       # amazon-ssm-agent is pre-installed via snap in the base Ubuntu image — no need to install
       "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0",
-      # OpenSCAP — optional pre-built binary for CIS benchmarking (ami-scan.sh uses if available)
-      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C / && echo 'OpenSCAP installed' || echo 'WARNING: OpenSCAP install failed, continuing without it'" : "echo 'OpenSCAP URL not provided, skipping'"}",
+      # OpenSCAP binary bundle plus Ubuntu 22.04 SSG content — required for ami-scan --cis
+      "${var.openscap_url != "" ? "curl -fsSL ${var.openscap_url} | sudo tar xz -C /" : "echo 'ERROR: OpenSCAP URL not provided'; exit 1"}",
+      "curl -fsSL -o /tmp/ssg-base.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-base_0.1.80-1_all.deb",
+      "curl -fsSL -o /tmp/ssg-debderived.deb http://ftp.sjtu.edu.cn/ubuntu/pool/universe/s/scap-security-guide/ssg-debderived_0.1.80-1_all.deb",
+      "sudo dpkg -i /tmp/ssg-base.deb /tmp/ssg-debderived.deb",
+      "rm -f /tmp/ssg-base.deb /tmp/ssg-debderived.deb",
+      "command -v oscap >/dev/null",
+      "test -f /usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml",
       "sudo systemctl enable auditd chrony unattended-upgrades",
       "sudo systemctl enable amazon-ssm-agent 2>/dev/null || true",  # Optional, may not have installed
       "sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
@@ -513,6 +539,10 @@ build {
   provisioner "file" {
     source      = "scripts/ami-scan.sh"
     destination = "/home/ubuntu/packer-assets/ami-scan.sh"
+  }
+  provisioner "file" {
+    source      = "scripts/fix-level1-base.sh"
+    destination = "/home/ubuntu/packer-assets/fix-level1-base.sh"
   }
   provisioner "file" {
     source      = "examples/pyspark_basic.py"
@@ -568,6 +598,7 @@ build {
     inline = [
       "sudo systemctl daemon-reload",
       "sudo bash /tmp/harden.sh",
+      "sudo bash /home/ubuntu/packer-assets/fix-level1-base.sh",
       "sudo install -m 0644 /home/ubuntu/packer-assets/spark-java.sh /etc/profile.d/spark-java.sh",
       "sudo install -m 0755 /home/ubuntu/packer-assets/ami-scan.sh /usr/local/bin/ami-scan",
       "sudo mkdir -p /opt/spark-local && sudo chmod 1777 /opt/spark-local",
@@ -619,15 +650,20 @@ build {
     source      = "scripts/smoke-pro.sh"
     destination = "/tmp/smoke-pro.sh"
   }
+  provisioner "file" {
+    source      = "scripts/fix-level2-addon.sh"
+    destination = "/tmp/fix-level2-addon.sh"
+  }
 
   provisioner "shell" {
     # Hardened /tmp is noexec after the kernel reboot; run the wrapper via
     # bash so the interpreter reads it (no exec() on the noexec file).
     execute_command = "chmod +x {{ .Path }}; {{ .Vars }} bash {{ .Path }}"
     inline = [
-      "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh",
+      "sudo chmod +x /tmp/build-pro-envs.sh /tmp/tune-pro.sh /tmp/smoke-pro.sh /tmp/fix-level2-addon.sh",
       "sudo bash /tmp/build-pro-envs.sh",
       "sudo bash /tmp/tune-pro.sh",
+      "sudo bash /tmp/fix-level2-addon.sh",
       "/tmp/smoke-pro.sh",
       "/usr/local/bin/py311 -V",
       "/usr/local/bin/py312 -V",

@@ -1,6 +1,6 @@
 # Security Hardening Summary (CIS Ubuntu 22.04 LTS Benchmark L1+L2)
 
-**Result: 114 controls, 0 FAIL, 1 WARN**
+**Result: CIS-aligned hardening controls applied; validate the current AMI with `sudo ami-scan` for live OpenSCAP and Trivy results**
 The single WARN is `aide --check` on a freshly booted instance — expected because
 AIDE is initialized at AMI build time; a `--check` on a running instance will always
 find legitimate first-boot differences (cloud-init writes, log creation). The baseline

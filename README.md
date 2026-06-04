@@ -22,7 +22,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - XGBoost, LightGBM, MLflow — across all three Python versions
 - ML kernel tuning: BBR TCP, 128 MB socket buffers, THP madvise, nofile=1M, vm.swappiness=1
 
-**Security — CIS Ubuntu 22.04 L1+L2 controls applied: 114 PASS · 0 FAIL · 1 WARN**
+**Security — CIS-aligned Ubuntu 22.04 hardening controls applied; OpenSCAP and Trivy scans available on demand**
 - SSH: key-only, no root, chacha20/aes-gcm, login banner
 - UFW: default deny inbound, SSH rate-limited via fail2ban
 - Filesystem: `/tmp` + `/var/tmp` tmpfs (nosuid/nodev/noexec, size=25%/10% RAM); `/dev/shm` hardened
@@ -38,7 +38,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - ARM64 PyTorch installed from PyPI (first-class `linux_aarch64` wheels); x86 from WHL index
 
 **Compliance**
-- CIS Ubuntu 22.04 L1+L2 controls applied (114 passing), CycloneDX SBOM baked in
+- CIS-aligned Ubuntu 22.04 hardening controls applied; OpenSCAP scan support and CycloneDX SBOM baked in
 - AWS Standard Contract for AWS Marketplace
 - ECCN 5D002.c.1, License Exception ENC (export classification baked into each AMI)
 
@@ -82,7 +82,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
   ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
   ║   │  service audit: multipathd · fwupd · snapd · iscsid     │░          ║
   ║   │  apport · motd-news · timesyncd  disabled/masked        │░          ║
-  ║   │                  114 controls  ·  0 FAIL  ·  1 WARN     │░          ║
+  ║   │        CIS-aligned controls  ·  verify with ami-scan    │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
   ║                           │                                              ║
@@ -308,7 +308,7 @@ This script:
 ```
 .
 ├── packer.pkr.hcl          Packer template — base + pro builds for x86 and ARM64
-├── harden.sh               CIS L1+L2 benchmark controls applied (114 passing), service audit
+├── harden.sh               CIS-aligned hardening controls, service audit
 ├── nix/
 │   └── flake.nix           Nix flake — Python envs + toolchains (nixos-25.05)
 ├── scripts/

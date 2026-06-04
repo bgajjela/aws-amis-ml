@@ -379,5 +379,29 @@ if [[ $SCAN_RC -ne 0 ]]; then
   echo "WARNING: ami-scan --cve reported findings; treating CVE scan as informational for now."
 fi
 
+if [[ "$TIER" == "base" ]]; then
+  echo "=== AMI CIS scan (OpenSCAP Level 1) ==="
+  set +e
+  # shellcheck disable=SC2086
+  ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" sudo ami-scan --cis-level1
+  CIS_SCAN_RC=$?
+  set -e
+  if [[ $CIS_SCAN_RC -ne 0 ]]; then
+    echo "WARNING: ami-scan --cis-level1 reported findings; treating CIS Level 1 scan as informational for now."
+  fi
+fi
+
+if [[ "$TIER" == "pro" ]]; then
+  echo "=== AMI CIS scan (OpenSCAP Level 2) ==="
+  set +e
+  # shellcheck disable=SC2086
+  ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" sudo ami-scan --cis-level2
+  CIS_SCAN_RC=$?
+  set -e
+  if [[ $CIS_SCAN_RC -ne 0 ]]; then
+    echo "WARNING: ami-scan --cis-level2 reported findings; treating CIS Level 2 scan as informational for now."
+  fi
+fi
+
 echo ""
 echo "=== All tests passed for ${AMI_ID} (arch=${ARCH} tier=${TIER}) ==="

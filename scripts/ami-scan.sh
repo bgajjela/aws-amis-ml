@@ -19,11 +19,23 @@ RUN_CVE=true
 RUN_CIS=true
 JSON_ONLY=false
 OUTDIR="/var/log/ami-scan"
+PROFILE_LABEL="Level 2 Server"
+PROFILE="xccdf_org.ssgproject.content_profile_cis_level2_server"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --cve)  RUN_CIS=false ;;
     --cis)  RUN_CVE=false ;;
+    --cis-level1)
+      RUN_CVE=false
+      RUN_CIS=true
+      PROFILE_LABEL="Level 1 Server"
+      PROFILE="xccdf_org.ssgproject.content_profile_cis_level1_server" ;;
+    --cis-level2)
+      RUN_CVE=false
+      RUN_CIS=true
+      PROFILE_LABEL="Level 2 Server"
+      PROFILE="xccdf_org.ssgproject.content_profile_cis_level2_server" ;;
     --json) JSON_ONLY=true ;;
     --out)  OUTDIR="$2"; shift ;;
     -h|--help)
@@ -106,18 +118,16 @@ fi
 
 # ── CIS scan (OpenSCAP) ──────────────────────────────────────────────────────
 if [[ "${RUN_CIS}" == true ]]; then
-  _header "CIS Benchmark — OpenSCAP (Ubuntu 22.04 Level 2 Server)"
+  _header "CIS Benchmark — OpenSCAP (Ubuntu 22.04 ${PROFILE_LABEL})"
 
   SCAP_DS="/usr/share/xml/scap/ssg/content/ssg-ubuntu2204-ds.xml"
-  PROFILE="xccdf_org.ssgproject.content_profile_cis_level2_server"
 
   if ! command -v oscap >/dev/null 2>&1; then
-    echo "ERROR: oscap not found. It should be installed via openscap-scanner." >&2
-    echo "       Re-launch from a current version of this AMI." >&2
+    echo "ERROR: oscap not found. Re-launch from a current version of this AMI." >&2
     OVERALL_EXIT=1
   elif [[ ! -f "${SCAP_DS}" ]]; then
     echo "ERROR: SCAP data stream not found at ${SCAP_DS}." >&2
-    echo "       Install: sudo apt-get install -y ssg-debderived" >&2
+    echo "       Re-launch from a current version of this AMI with bundled Ubuntu 22.04 SSG content." >&2
     OVERALL_EXIT=1
   else
     XML_OUT="${OUTDIR}/oscap-${TS}.xml"
