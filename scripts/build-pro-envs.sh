@@ -71,6 +71,7 @@ _build_pro() {
 
   sudo "${base_env}/bin/python" -m venv --system-site-packages "${pro_env}"
   _pip_invoke "${pro_env}/bin/pip" install --upgrade pip --quiet
+  sudo chmod -R a+rX "${pro_env}"
 
   pro_site="$("${pro_env}/bin/python" - <<'PY'
 import site
@@ -90,6 +91,7 @@ PY
 
   printf '%s\n' "${base_site}" | sudo tee "${pro_site}/_base_env_site.pth" >/dev/null
   printf '%s\n' "${cache_site}" | sudo tee "${pro_site}/_cache_env_site.pth" >/dev/null
+  sudo chmod -R a+rX "${pro_env}"
 
   echo "  [${label}] torch (CPU wheels)..."
   if [ "${ARCH}" = "x86_64" ]; then
@@ -125,6 +127,7 @@ print('  numpy=' + numpy.__version__ + ' torch=' + torch.__version__ + \
       ' tf=' + tensorflow.__version__ + ' mlflow=' + mlflow.__version__)
 "
   sudo rm -f "${smoke_wrapper}"
+  sudo chmod -R a+rX "${pro_env}"
   _write_python_wrapper "${pro_env}/bin/python" "${wrapper_dst}" "${runtime_lib_path}"
   echo "  [${label}] wrapper: ${wrapper_dst} -> ${pro_env}/bin/python"
   echo "=== [${label}] DONE ==="
