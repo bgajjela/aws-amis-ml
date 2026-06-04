@@ -290,8 +290,10 @@ node --version
 echo "--- Hardening spot checks ---"
 # SSH: password auth disabled
 sudo grep -i 'passwordauthentication no' /etc/ssh/sshd_config
-# UFW active
-sudo ufw status | grep -i 'Status: active'
+# Firewall: nftables enabled and ruleset loads
+systemctl is-enabled nftables
+systemctl is-active nftables
+sudo nft list ruleset >/dev/null
 # AppArmor enforcing
 sudo aa-status 2>/dev/null | grep -i 'profiles are in enforce mode'
 
