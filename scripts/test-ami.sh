@@ -120,7 +120,7 @@ resolve_candidate_subnets() {
     --output text)"
 
   local matched=0
-  while read -r subnet_id az available_ips; do
+  while read -r subnet_id az; do
     [[ -z "${subnet_id:-}" ]] && continue
     if grep -qw "$az" <<<"$offered_azs"; then
       printf '%s\n' "$subnet_id"
