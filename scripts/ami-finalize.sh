@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Dimenpoint
+# Copyright 2026 Bharath Kumar Gajjela
 # ami-finalize.sh — MUST be the last Packer provisioner step.
 # Generates the package manifest, installs legal notices, and scrubs build
 # artefacts so each customer instance starts from a clean, anonymous state.
@@ -150,7 +150,6 @@ below. Full license texts are available from the upstream project repositories.
 | AppArmor | GPL 2.0 | https://apparmor.net |
 | AIDE | GPL 2.0 | https://aide.github.io |
 | fail2ban | GPL 2.0 | https://fail2ban.org |
-| UFW | GPL 3.0 | https://launchpad.net/ufw |
 
 The full list of installed packages and versions is at:
   /usr/share/BUILD_INFO/packages.txt
@@ -166,7 +165,7 @@ sudo chmod 644 /usr/share/OSS_NOTICES.md
 sudo tee /usr/share/BUILD_INFO/EULA.txt >/dev/null <<'EOF'
 CPU DS/ML AMI — License Notice
 ===============================
-Copyright (c) 2026 Dimenpoint. All rights reserved.
+Copyright (c) 2026 Bharath Kumar Gajjela. All rights reserved.
 
 GOVERNING AGREEMENT
 This AMI is licensed under the AWS Standard Contract for AWS Marketplace
@@ -183,6 +182,20 @@ QUICK REFERENCE — KEY RESTRICTIONS
   - No reverse engineering or removal of copyright notices
   - No sublicensing or making this AMI available to third parties outside
     your AWS account
+  - Provided "as is" and "as available" without warranties of any kind
+  - Security is a shared responsibility; you are responsible for validating
+    security, compliance, and fitness for your intended use case and for the
+    secure operation of deployed instances
+
+LIMITATION OF LIABILITY
+To the maximum extent permitted by applicable law, this AMI is provided
+without warranties, and the maintainer will not be liable for indirect,
+incidental, special, consequential, exemplary, or punitive damages, or for
+loss of profits, revenue, data, business, goodwill, or anticipated savings
+arising from or related to this AMI. To the maximum extent permitted by
+applicable law, any liability relating to this AMI will be limited to the
+amount paid for the AMI during the 12 months preceding the event giving rise
+to the claim.
 
 OPEN-SOURCE COMPONENTS
 This AMI bundles open-source software (PyTorch, TensorFlow, Spark,
@@ -192,6 +205,22 @@ affected by the Standard Contract. See:
   /usr/share/BUILD_INFO/packages.txt       — full package list
   /usr/share/BUILD_INFO/sbom.cyclonedx.json — CycloneDX SBOM
   /usr/share/OSS_NOTICES.md               — open-source attributions
+
+STACK VALIDATION AND COMPATIBILITY
+This AMI includes a curated, smoke-tested language and ML stack intended to
+accelerate common CPU-based data science and machine learning workflows.
+Customers are responsible for validating package compatibility, runtime
+behavior, and performance for their own workloads before production use.
+If a packaged component fails in a clean, unmodified AMI and the issue is
+reproducible using the documented runtime paths or curated smoke-tested stack,
+the maintainer may provide best-effort guidance or address the issue in a
+future AMI update.
+Support does not include guaranteeing compatibility with every upstream
+package, framework version, model, or third-party dependency combination
+unless explicitly stated in applicable listing terms, and does not extend to
+customer-installed packages, modified environments, arbitrary third-party
+dependency combinations, or workload-specific compatibility and performance
+issues.
 
 EXPORT CONTROL
 This software contains encryption components classified under ECCN
@@ -257,7 +286,7 @@ cat <<NOTICE
 
  +------------------------------------------------------------+
  |          CPU DS/ML AMI  --  Authorized Use Only           |
- |   Copyright (c) 2026 Dimenpoint. AWS Standard Contract.  |
+ |  Copyright (c) 2026 Bharath Kumar Gajjela. Standard Contract. |
  |   Reverse engineering or redistribution is prohibited.    |
  |   Full terms: /usr/share/BUILD_INFO/EULA.txt              |
  +------------------------------------------------------------+

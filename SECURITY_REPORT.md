@@ -1,10 +1,6 @@
-# Security Hardening Summary (CIS Ubuntu 22.04 LTS Benchmark L1+L2)
+# Security Hardening Summary (CIS-aligned Ubuntu 22.04 LTS hardening)
 
-**Result: CIS-aligned hardening controls applied; validate the current AMI with `sudo ami-scan` for live OpenSCAP and Trivy results**
-The single WARN is `aide --check` on a freshly booted instance — expected because
-AIDE is initialized at AMI build time; a `--check` on a running instance will always
-find legitimate first-boot differences (cloud-init writes, log creation). The baseline
-DB is present at `/var/lib/aide/aide.db`.
+**Result: CIS-aligned hardening controls applied; validate the current AMI with `sudo ami-scan` for current OpenSCAP and Trivy results**
 
 Applied by: `harden.sh` (base AMI), `tune-pro.sh` (Pro AMI additional tuning)  
 Verified by: `sudo ami-scan` (Trivy + OpenSCAP, available on every instance)
@@ -18,7 +14,7 @@ This report applies equally to both published AMI families:
 | x86\_64 (Intel/AMD) | c6i | `cpu-ds-ml-ubuntu-2204-{base\|pro}-<timestamp>` |
 | ARM64 / Graviton3 | c7g | `cpu-ds-ml-ubuntu-2204-arm64-{base\|pro}-<timestamp>` |
 
-Both architectures are built from **identical scripts**: `harden.sh`, `tune-pro.sh`,
+Both architectures are built from **the same hardening and environment scripts**: `harden.sh`, `tune-pro.sh`,
 `build-base-envs.sh`, `build-pro-envs.sh`, `smoke-pro.sh`, and `ami-finalize.sh`.
 The only build-time difference is the AWS CLI download URL (`aarch64` vs `x86_64`)
 and the Ubuntu source AMI filter (`arm64-server` vs `amd64-server`). All hardening
@@ -51,24 +47,28 @@ Legal notice at `/etc/issue` (local TTY) and `/etc/issue.net` (SSH pre-auth).
 
 ---
 
-## Firewall (UFW)
+## Firewall / Network Controls
 
-Default deny inbound, allow outbound; OpenSSH allowed and rate-limited; logging on.
+The AMI enables `nftables` and applies additional SSH protection with fail2ban.
+The exact runtime network policy remains part of the customer's deployment and VPC design.
 
 - Verify:
   ```
-  ufw status verbose
+  systemctl is-enabled nftables
+  systemctl is-active nftables
+  sudo nft list ruleset
   ```
-  Expect: Status active; Default: deny (incoming), allow (outgoing); OpenSSH ALLOW + LIMIT rules.
+  Expect: `enabled`, `active`, and a valid ruleset.
 
 ---
 
 ## System Updates and Core Services
 
 `unattended-upgrades` enabled — running instances receive security patches
-automatically. `chrony` and `auditd` enabled at boot.
+automatically. `systemd-timesyncd` and `auditd` are enabled at boot in the
+current hardening path.
 
-- Verify: `systemctl is-enabled chrony auditd unattended-upgrades` (expect `enabled`)
+- Verify: `systemctl is-enabled systemd-timesyncd auditd unattended-upgrades` (expect `enabled`)
 
 ---
 
@@ -84,7 +84,7 @@ attack surface and boot footprint.
 | `multipathd` / `multipathd.socket` | masked | single EBS root volume, no multipath |
 | `iscsid` | masked | no iSCSI block storage |
 | `motd-news.timer` | masked | prevents outbound calls to motd.ubuntu.com |
-| `systemd-timesyncd` | masked | chrony handles time sync |
+| `systemd-timesyncd` | enabled in current build | baseline time synchronization |
 | `atd` | disabled | at-job scheduler unused; crond restricted to root |
 | `snapd` (all units) | disabled | Snap not supported in this environment |
 | `pollinate` | disabled | entropy seeding not needed post-boot |
@@ -175,8 +175,8 @@ produce equivalent audit coverage.
 
 ## AppArmor, AIDE, PAM
 
-- **AppArmor**: installed and enforcing all loaded profiles.
-- **AIDE**: database initialized at build time (`/var/lib/aide/aide.db`).
+- **AppArmor**: installed and enabled; verify enforcement state on the current instance.
+- **AIDE**: package and configuration included; validate database state on the current instance if you rely on it operationally.
 - **Password quality**: minlen=14, character class requirements, history=5.
 - **faillock**: deny after 5 failures, 900-second unlock.
 - **su**: restricted to `sudo` group via `pam_wheel`.
@@ -233,8 +233,7 @@ See `SECURITY.md` for the full advisory and manual remediation steps for older i
 
 ## Log Management
 
-`logrotate`: weekly, rotate 14, compress + delaycompress, dateext. UFW log
-rotation included. `journald`: persistent, compressed, size-capped (500 MB system,
+`logrotate`: weekly, rotate 14, compress + delaycompress, dateext. `journald`: persistent, compressed, size-capped (500 MB system,
 200 MB runtime), `Seal=yes`.
 
 - Verify:

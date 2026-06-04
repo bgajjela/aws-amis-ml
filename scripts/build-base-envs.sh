@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Dimenpoint
+# Copyright 2026 Bharath Kumar Gajjela
 # build-base-envs.sh — parallel Nix builds for the cache-friendly core Python
 # envs plus language toolchains, then layered pip-wheel installs for the heavy
 # notebook / computer-vision packages. This keeps the final AMI Python paths

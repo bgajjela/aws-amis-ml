@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Dimenpoint
+# Copyright 2026 Bharath Kumar Gajjela
 
 import pathlib
 import re

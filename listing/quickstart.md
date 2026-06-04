@@ -33,7 +33,9 @@ PySpark
 On-demand security scan
   sudo ami-scan            # CVE (Trivy) + CIS (OpenSCAP), ~5-8 min
   sudo ami-scan --cve      # CVE only, ~2-3 min
-  sudo ami-scan --cis      # CIS only, ~3-5 min
+  sudo ami-scan --cis      # CIS only (default profile), ~3-5 min
+  sudo ami-scan --cis-level1  # CIS Ubuntu 22.04 Level 1 profile
+  sudo ami-scan --cis-level2  # CIS Ubuntu 22.04 Level 2 profile
 
 Build info
   cat /usr/share/BUILD_INFO         # version
@@ -43,7 +45,7 @@ Build info
 
 Security posture
   SSH hardened: no passwords, no root, chacha20/aes-gcm only
-  UFW: default deny inbound, SSH rate-limited (fail2ban)
-  CIS L1+L2: 114 controls applied
+  nftables enabled; SSH protected with fail2ban
+  CIS-aligned hardening controls applied; validate current results with ami-scan
   IMDSv2 required — prevents SSRF metadata theft
   EBS encrypted at rest (KMS)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Dimenpoint
+# Copyright 2026 Bharath Kumar Gajjela
 # test-ami.sh — launch, verify, and tear down a test EC2 instance for an AMI.
 #
 # Usage: test-ami.sh <AMI_ID> <arch: x86_64|arm64> <tier: base|pro>
@@ -22,6 +22,7 @@ INSTANCE_ID=""
 TMP_SG_ID=""
 KEY_FILE="/tmp/${KEY_NAME}.pem"
 KNOWN_HOSTS_FILE="/tmp/known_hosts_${STAMP}"
+ARTIFACT_DIR="/tmp/ami-scan-artifacts/${ARCH}-${TIER}"
 
 # ── Cleanup (always runs on exit) ─────────────────────────────────────────────
 cleanup() {
@@ -41,6 +42,27 @@ cleanup() {
   rm -f "$KEY_FILE" "$KNOWN_HOSTS_FILE"
 }
 trap cleanup EXIT
+
+capture_scan_artifacts() {
+  mkdir -p "$ARTIFACT_DIR"
+
+  # Prepare readable copies on the instance so the runner can download them.
+  # shellcheck disable=SC2086
+  ssh $SSH_OPTS "ubuntu@${PUBLIC_IP}" bash -s <<'SSHEOF'
+set -euo pipefail
+EXPORT_DIR="/tmp/ami-scan-export"
+mkdir -p "${EXPORT_DIR}"
+sudo cp /var/log/ami-scan/latest-cve.json "${EXPORT_DIR}/" 2>/dev/null || true
+sudo cp /var/log/ami-scan/latest-cis.html "${EXPORT_DIR}/" 2>/dev/null || true
+sudo cp /var/log/ami-scan/latest-cis.xml "${EXPORT_DIR}/" 2>/dev/null || true
+sudo chmod 644 "${EXPORT_DIR}"/* 2>/dev/null || true
+SSHEOF
+
+  for remote_file in latest-cve.json latest-cis.html latest-cis.xml; do
+    # shellcheck disable=SC2086
+    scp $SSH_OPTS "ubuntu@${PUBLIC_IP}:/tmp/ami-scan-export/${remote_file}" "${ARTIFACT_DIR}/${remote_file}" >/dev/null 2>&1 || true
+  done
+}
 
 # ── Networking ────────────────────────────────────────────────────────────────
 VPC_ID=$(aws ec2 describe-vpcs \
@@ -391,6 +413,7 @@ if [[ "$TIER" == "base" ]]; then
   if [[ $CIS_SCAN_RC -ne 0 ]]; then
     echo "WARNING: ami-scan --cis-level1 reported findings; treating CIS Level 1 scan as informational for now."
   fi
+  capture_scan_artifacts
 fi
 
 if [[ "$TIER" == "pro" ]]; then
@@ -403,6 +426,7 @@ if [[ "$TIER" == "pro" ]]; then
   if [[ $CIS_SCAN_RC -ne 0 ]]; then
     echo "WARNING: ami-scan --cis-level2 reported findings; treating CIS Level 2 scan as informational for now."
   fi
+  capture_scan_artifacts
 fi
 
 echo ""

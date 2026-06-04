@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Dimenpoint
+# Copyright 2026 Bharath Kumar Gajjela
 packer {
   required_plugins {
     amazon = { source = "github.com/hashicorp/amazon", version = "~> 1.7.0" }
@@ -713,6 +713,3 @@ variable "additional_regions" {
 }
 # c7g.xlarge: Graviton3, 4 vCPU / 8 GB — same spec class as c6i.xlarge used for x86.
 variable "arm_instance_type" { default = "c7g.xlarge" }
-# Pre-built OpenSCAP tarball URL (from GitHub releases, built by build-openscap.yml workflow)
-# Leave empty to skip OpenSCAP installation (ami-scan.sh handles gracefully)
-variable "openscap_url" { default = "" }

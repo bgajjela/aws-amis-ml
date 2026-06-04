@@ -21,13 +21,15 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - PyTorch (CPU), TensorFlow CPU, Transformers, Datasets, Tokenizers, Accelerate
 - XGBoost, LightGBM, MLflow — across all three Python versions
 - ML kernel tuning: BBR TCP, 128 MB socket buffers, THP madvise, nofile=1M, vm.swappiness=1
+- Curated and smoke-tested build intended to accelerate common CPU-based DS/ML workflows; customers should validate package compatibility, runtime behavior, and performance for their own workloads before production use
+- If a packaged component fails in a clean, unmodified AMI and the issue is reproducible using the documented runtime paths or curated smoke-tested stack, remediation may be provided through best-effort guidance or a future AMI update
 
-**Security — CIS-aligned Ubuntu 22.04 hardening controls applied; OpenSCAP and Trivy scans available on demand**
+**Security — CIS-aligned Ubuntu 22.04 hardening controls applied; OpenSCAP and Trivy scan support available on demand**
 - SSH: key-only, no root, chacha20/aes-gcm, login banner
-- UFW: default deny inbound, SSH rate-limited via fail2ban
+- Network controls: nftables enabled; SSH access restricted and rate-limited via fail2ban
 - Filesystem: `/tmp` + `/var/tmp` tmpfs (nosuid/nodev/noexec, size=25%/10% RAM); `/dev/shm` hardened
 - Logging: auditd (640 MB cap, rotated); journald (500 MB cap, 2-week retention, compressed)
-- IMDSv2 enforced; EBS encrypted at rest (KMS); AppArmor enforcing; AIDE initialized
+- IMDSv2 enforced; EBS encrypted at rest (KMS); AppArmor enabled; AIDE included
 - Boot footprint: multipathd, fwupd, snapd, apport, iscsid, motd-news disabled — saves ~5–8s per boot
 - On-demand scanner: `sudo ami-scan` (Trivy CVE + OpenSCAP CIS) — no boot hooks, no auto-run
 
@@ -38,7 +40,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
 - ARM64 PyTorch installed from PyPI (first-class `linux_aarch64` wheels); x86 from WHL index
 
 **Compliance**
-- CIS-aligned Ubuntu 22.04 hardening controls applied; OpenSCAP scan support and CycloneDX SBOM baked in
+- CIS-aligned Ubuntu 22.04 hardening controls applied; OpenSCAP scan support and CycloneDX SBOM included
 - AWS Standard Contract for AWS Marketplace
 - ECCN 5D002.c.1, License Exception ENC (export classification baked into each AMI)
 
@@ -60,8 +62,8 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
   ║   │  1  APT BOOTSTRAP                                       │░          ║
   ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
   ║   │  curl · jq · git-lfs · unzip · gnupg · build-essential │░          ║
-  ║   │  ufw · auditd · fail2ban · chrony · unattended-upgrades │░          ║
-  ║   │  openscap-scanner · trivy v0.70.0 (pinned)              │░          ║
+  ║   │  nftables · auditd · fail2ban · unattended-upgrades    │░          ║
+  ║   │  libopenscap8 + Ubuntu SSG content · trivy v0.70.0     │░          ║
   ║   │  awscli v2  (PGP-verified)  ·  Nix 2.24.9 (pinned)     │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
@@ -71,7 +73,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
   ║   │  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  │░          ║
   ║   │  ┌─────────────────────┐  ┌─────────────────────────┐  │░          ║
   ║   │  │  §1-2  Filesystem   │  │  §3    Network          │  │░          ║
-  ║   │  │  tmpfs · modules    │  │  sysctl · UFW · BBR     │  │░          ║
+  ║   │  │  tmpfs · modules    │  │  sysctl · nftables · BBR│  │░          ║
   ║   │  │  AIDE  · AppArmor   │  │  martians · SYN cookies │  │░          ║
   ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
   ║   │  ┌─────────────────────┐  ┌─────────────────────────┐  │░          ║
@@ -81,7 +83,7 @@ Available for **x86_64** (Intel/AMD, c6i family) and **ARM64/Graviton** (c7g fam
   ║   │  │  journald+keepfree  │  │  TMOUT · wheel group    │  │░          ║
   ║   │  └─────────────────────┘  └─────────────────────────┘  │░          ║
   ║   │  service audit: multipathd · fwupd · snapd · iscsid     │░          ║
-  ║   │  apport · motd-news · timesyncd  disabled/masked        │░          ║
+  ║   │  apport · motd-news disabled · timesyncd enabled        │░          ║
   ║   │        CIS-aligned controls  ·  verify with ami-scan    │░          ║
   ║   └────────────────────────────────────────────────────────┘░          ║
   ║    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░           ║
@@ -251,7 +253,7 @@ All builds are automated via GitHub Actions. Manual local builds (see [Building]
      ├─ Runs smoke tests on both variants
      ├─ Requires approval gates (manual confirmation for release)
      │
-     └─ On success → optionally triggers CIS compliance scan
+     └─ On success → uploads CVE and CIS scan artifacts from the AMI tests
 
   ════════════════════════════════════════════════════════════════
 ```
@@ -418,7 +420,9 @@ These wrappers embed `JAVA_HOME`, `SPARK_HOME`, `SPARK_LOCAL_DIRS`, and `PYSPARK
 ```bash
 sudo ami-scan              # CVE (Trivy) + CIS (OpenSCAP)  ~5–8 min
 sudo ami-scan --cve        # CVE only  ~2–3 min
-sudo ami-scan --cis        # CIS only  ~3–5 min
+sudo ami-scan --cis        # CIS only (default profile)  ~3–5 min
+sudo ami-scan --cis-level1 # CIS Ubuntu 22.04 Level 1 profile
+sudo ami-scan --cis-level2 # CIS Ubuntu 22.04 Level 2 profile
 sudo ami-scan --json       # machine-readable output
 sudo ami-scan --out /tmp/scan   # write results to custom dir
 # Results and symlinks to latest: /var/log/ami-scan/
@@ -437,11 +441,11 @@ cat /usr/share/BUILD_INFO/EAR-classification.txt # export classification
 
 ## Security Notes
 
-- **AIDE:** DB initialized at build time. Run `sudo aide --check` to verify filesystem integrity.
-- **UFW:** Default deny inbound. Open only the ports you need: `sudo ufw allow <port>`.
+- **AIDE:** Package and configuration are included. Validate database state on the current instance if you rely on AIDE operationally.
+- **nftables:** Firewall policy is managed with `nftables`. Review the active ruleset with `sudo nft list ruleset` and adjust it for your deployment as needed.
 - **auditd:** Logs rotate at 32 MB, 20 files max (640 MB cap). Check with `sudo ausearch -k <key>`.
 - **ami-scan:** Not run at boot or on a schedule — invoke manually when you need a current CVE or CIS report.
-- **Boot services:** `multipathd`, `fwupd`, `snapd`, `apport`, `iscsid`, `motd-news`, `systemd-timesyncd` are disabled/masked. Re-enable any with `sudo systemctl unmask --now <service>` if needed.
+- **Boot services:** `multipathd`, `fwupd`, `snapd`, `apport`, `iscsid`, and `motd-news` are disabled or masked to reduce boot footprint. `systemd-timesyncd` remains enabled for baseline time synchronization.
 - **IMDSv2:** Required on all instances. The `http_put_response_hop_limit = 1` blocks container-to-host metadata theft.
 
 ---

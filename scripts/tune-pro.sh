@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Dimenpoint
+# Copyright 2026 Bharath Kumar Gajjela
 # tune-pro.sh — ML workload optimizations layered on top of base tuning.
 #
 # Runs as the final step of the pro AMI build (after pip installs).

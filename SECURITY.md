@@ -4,7 +4,7 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email: dimenpoint@gmail.com  
+Email: bgajjela@gmail.com
 Subject line: `[SECURITY] CPU DS/ML AMI — <brief description>`
 
 Include:
@@ -163,29 +163,41 @@ The public key fingerprint is: `C06D 6AF1 DA1E E331 3768 2DF0 32BC D1C3 0777 1BA
 
 ## Disclaimer
 
-THIS AMI IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
+THIS AMI IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, OR NON-INFRINGEMENT.
 
-**Your responsibility.** You are solely responsible for evaluating whether this
-AMI meets your organization's security requirements, validating controls against
-your own compliance obligations, and maintaining the security posture of any
-instance you launch. Hardening controls applied at build time do not substitute
-for ongoing operational security practices.
+**Shared responsibility.** Security for workloads launched from this AMI is a
+shared responsibility. This AMI provides build-time hardening, package
+selection, and scan support, but you remain responsible for determining whether
+the AMI is appropriate for your environment, validating any security or
+compliance controls against your own requirements, and securely configuring,
+operating, patching, monitoring, networking, and controlling access to any
+deployed instances.
+
+**Support scope.** Support, if any, is limited to the support terms and contact
+methods provided with the listing. No managed security service, legal advice,
+compliance certification, incident response obligation, or guaranteed response
+time is provided unless explicitly stated in the applicable listing terms.
 
 **Limitation of liability.** To the maximum extent permitted by applicable law,
-Dimenpoint shall not be liable for any direct, indirect, incidental, special,
-consequential, or punitive damages arising from your use of, or inability to use,
-this AMI — including but not limited to data loss, unauthorized access, security
-incidents, compliance failures, or service interruptions — even if advised of
-the possibility of such damages.
+the maintainer will not be liable for any indirect, incidental, special,
+consequential, exemplary, or punitive damages, or for any loss of profits,
+revenue, data, business, goodwill, or anticipated savings, arising out of or
+related to this AMI, even if advised of the possibility of such damages. To the
+maximum extent permitted by applicable law, any liability relating to this AMI
+will be limited to the amount you paid for the AMI during the 12 months
+preceding the event giving rise to the claim.
 
-**No compliance guarantee.** The presence of CIS benchmark controls does not constitute a guarantee of
-compliance with any regulatory framework, including SOC 2, HIPAA, PCI-DSS,
-FedRAMP, or ISO 27001. Engage a qualified auditor for formal compliance
-assessments applicable to your use case.
+**No compliance guarantee.** References to CIS, hardening, scanning, or similar
+security controls describe technical measures included in the build and do not
+constitute a representation or warranty that your use of this AMI satisfies any
+legal, regulatory, contractual, or audit requirement, including SOC 2, HIPAA,
+PCI DSS, FedRAMP, or ISO 27001. Formal compliance determinations require your
+own review and, where appropriate, qualified professional advice or independent
+audit.
 
-**AWS terms govern.** Your use of this AMI through AWS Marketplace is subject
-to the AWS Customer Agreement and the AWS Standard Contract for AWS Marketplace.
-In the event of any conflict between this document and those agreements, the
-AWS terms control.
+**AWS terms govern.** Your use of this AMI through AWS Marketplace remains
+subject to the AWS Customer Agreement, the AWS Marketplace Standard Contract,
+and any listing-specific terms. If those terms conflict with this document, the
+applicable AWS Marketplace terms control.

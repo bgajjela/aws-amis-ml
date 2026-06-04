@@ -295,25 +295,6 @@ jobs:
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve OpenSCAP release
-        id: openscap
-        run: |
-          # Fetch latest OpenSCAP release URL, or empty string if none exists
-          RELEASE_URL=$(gh release list --repo "${{ github.repository }}" \
-            --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
-
-          if [[ -n "$RELEASE_URL" ]]; then
-            # Extract the tarball URL from the release
-            OPENSCAP_URL=$(gh api "repos/${{ github.repository }}/releases/latest" \
-              --jq '.assets[] | select(.name | contains("openscap")) | .browser_download_url' 2>/dev/null | head -1)
-            if [[ -z "$OPENSCAP_URL" ]]; then
-              echo "⚠ OpenSCAP release found but no tarball asset. Skipping OpenSCAP."
-            fi
-          else
-            echo "ℹ No OpenSCAP release found. Run 'gh workflow run build-openscap.yml' to build it."
-          fi
-          echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
-
       - name: Packer build — x86 base
         id: packer
         run: |
@@ -326,7 +307,6 @@ jobs:
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
             -var "root_volume_size=24" \
             -var "associate_public_ip=true" \
-            -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . > /tmp/packer-build.raw.log 2>&1
           status=$?
 
@@ -502,6 +482,15 @@ jobs:
             x86_64 \
             base
 
+      - name: Upload AMI scan reports — x86 base
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: ami-scan-x86-base
+          path: /tmp/ami-scan-artifacts/x86_64-base
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Pass AMI ID to tag job
         id: passthrough
         run: |
@@ -635,25 +624,6 @@ jobs:
           fi
           echo "subnet_id=${SUBNET}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve OpenSCAP release
-        id: openscap
-        run: |
-          # Fetch latest OpenSCAP release URL, or empty string if none exists
-          RELEASE_URL=$(gh release list --repo "${{ github.repository }}" \
-            --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
-
-          if [[ -n "$RELEASE_URL" ]]; then
-            # Extract the tarball URL from the release
-            OPENSCAP_URL=$(gh api "repos/${{ github.repository }}/releases/latest" \
-              --jq '.assets[] | select(.name | contains("openscap")) | .browser_download_url' 2>/dev/null | head -1)
-            if [[ -z "$OPENSCAP_URL" ]]; then
-              echo "⚠ OpenSCAP release found but no tarball asset. Skipping OpenSCAP."
-            fi
-          else
-            echo "ℹ No OpenSCAP release found. Run 'gh workflow run build-openscap.yml' to build it."
-          fi
-          echo "url=${OPENSCAP_URL:-}" >> "$GITHUB_OUTPUT"
-
       - name: Packer build — x86 pro
         id: packer
         run: |
@@ -672,7 +642,6 @@ jobs:
             -var "base_ami_id=${BASE_AMI_ID}" \
             -var "root_volume_size=50" \
             -var "associate_public_ip=true" \
-            -var "openscap_url=${{ steps.openscap.outputs.url }}" \
             . > /tmp/packer-build.raw.log 2>&1
           status=$?
 
@@ -790,6 +759,15 @@ jobs:
             "${AMI_ID}" \
             x86_64 \
             pro
+
+      - name: Upload AMI scan reports — x86 pro
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: ami-scan-x86-pro
+          path: /tmp/ami-scan-artifacts/x86_64-pro
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Pass AMI ID to tag job
         id: passthrough
