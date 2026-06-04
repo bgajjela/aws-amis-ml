@@ -500,7 +500,7 @@ jobs:
 # ── x86 pro ─────────────────────────────────────────────────────────────────
   build-x86-pro:
     name: Build x86 pro AMI
-    needs: [validate, test-x86-base]
+    needs: [validate, test-x86-base, guard-x86-base-test-contract]
     environment: production
     if: |
       always() &&
@@ -630,7 +630,7 @@ jobs:
           set +e
           BASE_AMI_ID="${{ github.event.inputs.existing_x86_base_ami_id }}"
           if [[ "${{ github.event.inputs.direct_x86_pro_from_existing_base }}" != "true" ]]; then
-            BASE_AMI_ID="${{ needs.test-x86-base.outputs.ami_id }}"
+            BASE_AMI_ID="${{ needs.guard-x86-base-test-contract.outputs.ami_id }}"
           fi
           [[ -z "$BASE_AMI_ID" || "$BASE_AMI_ID" == "None" ]] && { echo "ERROR: base AMI ID not found"; exit 1; }
           packer init .
