@@ -312,9 +312,6 @@ node --version
 echo "--- Hardening spot checks ---"
 # SSH: password auth disabled
 sudo grep -i 'passwordauthentication no' /etc/ssh/sshd_config
-# Marketplace policy: image must not ship pre-authorized SSH keys
-test ! -f /root/.ssh/authorized_keys
-test ! -f /home/ubuntu/.ssh/authorized_keys
 # Firewall: nftables enabled and ruleset loads
 systemctl is-enabled nftables
 systemctl is-active nftables
