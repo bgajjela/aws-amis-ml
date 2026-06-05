@@ -450,6 +450,25 @@ cat /usr/share/BUILD_INFO/EAR-classification.txt # export classification
 
 ---
 
+## Support
+
+For AWS Marketplace product questions or reproducible issues affecting a clean,
+unmodified deployment of this AMI, contact `bgajjela@gmail.com`.
+
+Please include:
+- AWS account ID
+- AWS Region
+- product or version name
+- instance type
+- a short description of the issue and reproduction steps
+
+Support is limited to the packaged AMI and documented runtime paths. It does
+not include customer-modified environments, customer-installed packages,
+arbitrary third-party dependency combinations, or workload-specific
+compatibility and performance issues.
+
+---
+
 ## Pro AMI — Performance Profile
 
 Applied by `tune-pro.sh` at build time; active on every boot:

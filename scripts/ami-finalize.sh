@@ -346,6 +346,16 @@ sudo rm -rf /root/.cache/trivy 2>/dev/null || true
 # Remove SSH host keys — new keys are generated on each customer's first boot
 sudo rm -f /etc/ssh/ssh_host_*
 
+# Remove any build-time SSH access material. Marketplace AMIs must not ship
+# authorized_keys, user keypairs, or known_hosts entries for root/ubuntu.
+for ssh_dir in /root/.ssh /home/ubuntu/.ssh; do
+  sudo rm -f "${ssh_dir}/authorized_keys" "${ssh_dir}/authorized_keys2" 2>/dev/null || true
+  sudo rm -f "${ssh_dir}/known_hosts" "${ssh_dir}/config" 2>/dev/null || true
+  sudo rm -f "${ssh_dir}"/id_* 2>/dev/null || true
+  sudo find "${ssh_dir}" -mindepth 1 -maxdepth 1 -type f -delete 2>/dev/null || true
+  sudo rmdir "${ssh_dir}" 2>/dev/null || true
+done
+
 # Reset cloud-init so it runs fresh on each new instance (re-injects keypairs, etc.)
 sudo cloud-init clean --logs 2>/dev/null || true
 sudo rm -rf /var/lib/cloud/instances/* 2>/dev/null || true
@@ -354,6 +364,10 @@ sudo rm -rf /var/lib/cloud/instances/* 2>/dev/null || true
 sudo truncate -s 0 /root/.bash_history 2>/dev/null || true
 sudo truncate -s 0 /home/ubuntu/.bash_history 2>/dev/null || true
 history -c 2>/dev/null || true
+
+# Remove common build-time credential locations from root and ubuntu homes.
+sudo rm -rf /root/.aws /home/ubuntu/.aws 2>/dev/null || true
+sudo rm -f /root/.netrc /home/ubuntu/.netrc 2>/dev/null || true
 
 # Remove build temp files
 sudo rm -f /tmp/harden.sh /tmp/ami-finalize.sh /tmp/install-nix.sh 2>/dev/null || true
