@@ -65,7 +65,7 @@ WRAPPER
 # ── Per-version build function (runs in a subshell background job) ────────────
 _build_pro() {
   local label="$1" base_env="$2" pro_env="$3" wrapper_dst="$4"
-  local runtime_lib_path smoke_wrapper pro_site base_site cache_site
+  local runtime_lib_path smoke_wrapper pro_site base_site cache_site=""
 
   echo "=== [${label}] ${base_env} -> ${pro_env} (arch: ${ARCH}) ==="
 
@@ -83,14 +83,12 @@ import site
 print(site.getsitepackages()[0])
 PY
 )"
-  cache_site="$("/opt/nix/cache-envs/${base_env##*/}/bin/python" - <<'PY'
-import site
-print(site.getsitepackages()[0])
-PY
-)"
-
+  local cache_python="/opt/nix/cache-envs/${base_env##*/}/bin/python"
   printf '%s\n' "${base_site}" | sudo tee "${pro_site}/_base_env_site.pth" >/dev/null
-  printf '%s\n' "${cache_site}" | sudo tee "${pro_site}/_cache_env_site.pth" >/dev/null
+  if [ -x "${cache_python}" ]; then
+    cache_site="$("${cache_python}" -c "import site; print(site.getsitepackages()[0])")"
+    printf '%s\n' "${cache_site}" | sudo tee "${pro_site}/_cache_env_site.pth" >/dev/null
+  fi
   sudo chmod -R a+rX "${pro_env}"
 
   echo "  [${label}] torch (CPU wheels)..."
@@ -107,9 +105,15 @@ PY
       --quiet
   fi
 
-  echo "  [${label}] tensorflow-cpu + ecosystem..."
+  echo "  [${label}] tensorflow + ecosystem..."
+  # tensorflow-cpu exists only for x86_64; on aarch64 PyPI only publishes tensorflow
+  if [ "${ARCH}" = "x86_64" ]; then
+    TF_PKG="tensorflow-cpu"
+  else
+    TF_PKG="tensorflow"
+  fi
   _pip_invoke "${pro_env}/bin/pip" install \
-    tensorflow-cpu \
+    "${TF_PKG}" \
     transformers datasets tokenizers sentencepiece accelerate \
     --quiet
 
