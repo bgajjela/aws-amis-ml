@@ -54,6 +54,9 @@ on:
       base_ami_id_arm:
         description: 'Skip base build — use this existing ARM64 base AMI ID (pro target only)'
         default: ''
+      pro_ami_id_arm:
+        description: 'Skip pro build — use this existing ARM64 pro AMI ID to run tests only'
+        default: ''
 
 # id-token:write is required for OIDC short-lived credential exchange.
 #
@@ -457,6 +460,7 @@ jobs:
     if: |
       always() &&
       needs.validate.result == 'success' &&
+      github.event.inputs.pro_ami_id_arm == '' &&
       (inputs.target == 'pro' || github.event.inputs.target == 'pro') &&
       (
         needs.test-arm-base.result == 'success' ||
@@ -615,8 +619,15 @@ jobs:
 
   test-arm-pro:
     name: Test ARM64 pro AMI
-    needs: build-arm-pro
+    needs: [validate, build-arm-pro]
     environment: production
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      (
+        needs.build-arm-pro.result == 'success' ||
+        (needs.build-arm-pro.result == 'skipped' && github.event.inputs.pro_ami_id_arm != '')
+      )
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -684,7 +695,7 @@ jobs:
         run: |
           chmod +x scripts/test-ami.sh
           scripts/test-ami.sh \
-            "${{ needs.build-arm-pro.outputs.ami_id }}" \
+            "${{ github.event.inputs.pro_ami_id_arm || needs.build-arm-pro.outputs.ami_id }}" \
             arm64 \
             pro
 
@@ -699,7 +710,7 @@ jobs:
 
       - name: Pass AMI ID to tag job
         id: passthrough
-        run: echo "ami_id=${{ needs.build-arm-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "ami_id=${{ github.event.inputs.pro_ami_id_arm || needs.build-arm-pro.outputs.ami_id }}" >> "$GITHUB_OUTPUT"
 
 # ── Tag AMIs ─────────────────────────────────────────────────────────────────
   tag-release:
