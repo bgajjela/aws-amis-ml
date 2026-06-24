@@ -826,15 +826,9 @@ jobs:
 # test-ami.sh was skipped due to a SIGKILL from a job timeout.
   cleanup-orphans:
     name: Terminate orphaned test instances
-    needs: [test-arm-base, test-arm-pro]
-    if: |
-      always() &&
-      (
-        needs.test-arm-base.result != 'skipped' ||
-        needs.test-arm-pro.result != 'skipped'
-      )
+    needs: [build-arm-base, test-arm-base, build-arm-pro, test-arm-pro]
+    if: always()
     runs-on: ubuntu-22.04
-    environment: production
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
@@ -1007,12 +1001,7 @@ jobs:
             needs.test-arm-pro.result == 'skipped'
           )
         run: |
-          echo "✅ All AMI builds and tests successful!"
+          echo "✅ All ARM64 AMI builds and tests successful!"
           echo ""
-          echo "Triggering build-openscap-x86.yml for compliance reporting..."
-          gh workflow run build-openscap-x86.yml \
-            --ref ${{ github.ref }}
-          echo ""
-          echo "Track progress at: https://github.com/${{ github.repository }}/actions/workflows/build-openscap-x86.yml"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "AMI scan artifacts uploaded as workflow artifacts."
+          echo "Track progress at: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
