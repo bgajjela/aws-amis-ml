@@ -51,6 +51,9 @@ on:
       version_tag:
         description: 'Release tag to apply to built AMIs (e.g. v1.0.1)'
         default: ''
+      base_ami_id_arm:
+        description: 'Skip base build — use this existing ARM64 base AMI ID (pro target only)'
+        default: ''
 
 # id-token:write is required for OIDC short-lived credential exchange.
 #
@@ -146,7 +149,7 @@ jobs:
     name: Build ARM64 base AMI
     needs: validate
     environment: production
-    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target)
+    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.base_ami_id_arm == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     outputs:
@@ -312,7 +315,8 @@ jobs:
       always() &&
       needs.validate.result == 'success' &&
       needs.build-arm-base.result == 'success' &&
-      contains(fromJSON('["base","pro"]'), github.event.inputs.target)
+      contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
+      github.event.inputs.base_ami_id_arm == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
@@ -356,7 +360,8 @@ jobs:
       always() &&
       needs.validate.result == 'success' &&
       needs.guard-arm-base-test-contract.result == 'success' &&
-      contains(fromJSON('["base","pro"]'), github.event.inputs.target)
+      contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
+      github.event.inputs.base_ami_id_arm == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
@@ -447,9 +452,16 @@ jobs:
 # ── ARM64 pro ────────────────────────────────────────────────────────────────
   build-arm-pro:
     name: Build ARM64 pro AMI
-    needs: test-arm-base
+    needs: [validate, test-arm-base]
     environment: production
-    if: needs.test-arm-base.result == 'success' && (inputs.target == 'pro' || github.event.inputs.target == 'pro')
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      (inputs.target == 'pro' || github.event.inputs.target == 'pro') &&
+      (
+        needs.test-arm-base.result == 'success' ||
+        (needs.test-arm-base.result == 'skipped' && github.event.inputs.base_ami_id_arm != '')
+      )
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     outputs:
@@ -570,7 +582,7 @@ jobs:
             -only=cpu-ds-ml-arm64-pro.amazon-ebs.ubuntu_arm_pro \
             -var "region=${AWS_DEFAULT_REGION}" \
             -var "subnet_id=${{ steps.net.outputs.subnet_id }}" \
-            -var "base_ami_id_arm=${{ needs.test-arm-base.outputs.ami_id }}" \
+            -var "base_ami_id_arm=${{ github.event.inputs.base_ami_id_arm || needs.test-arm-base.outputs.ami_id }}" \
             -var "root_volume_size=50" \
             -var "associate_public_ip=true" \
             . > /tmp/packer-build.raw.log 2>&1
