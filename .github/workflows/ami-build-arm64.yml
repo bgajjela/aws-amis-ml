@@ -41,10 +41,10 @@ on:
       target:
         description: 'Build target'
         type: choice
-        default: base
+        default: pro
         options:
+          - pro        # ARM base → pro (full pipeline)
           - base       # ARM base only
-          - pro        # ARM base → pro
       region:
         description: 'AWS region'
         default: us-east-1
