@@ -126,7 +126,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6.0.2
 
       - name: Install Packer
         run: |
@@ -152,17 +152,17 @@ jobs:
     name: Build ARM64 base AMI
     needs: validate
     environment: production
-    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.base_ami_id_arm == ''
+    if: success() && contains(fromJSON('["base","pro"]'), github.event.inputs.target) && github.event.inputs.base_ami_id_arm == '' && github.event.inputs.pro_ami_id_arm == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     outputs:
       ami_id: ${{ steps.packer.outputs.ami_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6.0.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -304,7 +304,7 @@ jobs:
 
       - name: Upload Packer log
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: packer-log-arm-base
           path: /tmp/packer-build.log
@@ -319,14 +319,15 @@ jobs:
       needs.validate.result == 'success' &&
       needs.build-arm-base.result == 'success' &&
       contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
-      github.event.inputs.base_ami_id_arm == ''
+      github.event.inputs.base_ami_id_arm == '' &&
+      github.event.inputs.pro_ami_id_arm == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
       ami_id: ${{ steps.guard.outputs.ami_id }}
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -364,17 +365,18 @@ jobs:
       needs.validate.result == 'success' &&
       needs.guard-arm-base-test-contract.result == 'success' &&
       contains(fromJSON('["base","pro"]'), github.event.inputs.target) &&
-      github.event.inputs.base_ami_id_arm == ''
+      github.event.inputs.base_ami_id_arm == '' &&
+      github.event.inputs.pro_ami_id_arm == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     outputs:
       ami_id: ${{ steps.passthrough.outputs.ami_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6.0.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -439,7 +441,7 @@ jobs:
 
       - name: Upload AMI scan reports — ARM64 base
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ami-scan-arm64-base
           path: /tmp/ami-scan-artifacts/arm64-base
@@ -472,10 +474,10 @@ jobs:
       ami_id: ${{ steps.packer.outputs.ami_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6.0.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -611,7 +613,7 @@ jobs:
 
       - name: Upload Packer log
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: packer-log-arm-pro
           path: /tmp/packer-build.log
@@ -634,10 +636,10 @@ jobs:
       ami_id: ${{ steps.passthrough.outputs.ami_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6.0.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -701,7 +703,7 @@ jobs:
 
       - name: Upload AMI scan reports — ARM64 pro
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ami-scan-arm64-pro
           path: /tmp/ami-scan-artifacts/arm64-pro
@@ -728,7 +730,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -856,7 +858,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c  # v4
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
