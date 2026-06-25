@@ -6,6 +6,13 @@
 # Shares the AMI with the Marketplace scanner account, then submits an
 # AddDeliveryOptions change set to the existing product listing.
 # Does not build or test anything — pure publish step.
+#
+# Required GitHub secrets:
+#   MARKETPLACE_AWS_ACCESS_KEY_ID     — aws_ami_ml user access key (has Marketplace + iam:PassRole)
+#   MARKETPLACE_AWS_SECRET_ACCESS_KEY — aws_ami_ml user secret key
+#   MARKETPLACE_ENTITY_ID             — Marketplace product entity ID (prod-xxx)
+#   MARKETPLACE_ACCESS_ROLE_ARN       — IAM role ARN for Marketplace AMI scanning
+#   MARKETPLACE_SCANNER_ACCOUNT_ID    — AWS Marketplace scanner account ID
 
 name: Publish AMI to Marketplace
 
@@ -13,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       ami_id:
-        description: 'AMI ID to publish (e.g. ami-07271f0387249fa08)'
+        description: 'AMI ID to publish'
         required: true
       version_tag:
         description: 'Version title for Marketplace listing (e.g. 2026.06.25-arm64-base)'
@@ -26,7 +33,7 @@ on:
           - arm64
           - x86_64
       ami_label:
-        description: 'Short label for the delivery option title (e.g. base, pro)'
+        description: 'Short label for the delivery option title'
         type: choice
         default: base
         options:
@@ -45,13 +52,13 @@ permissions:
 
 jobs:
   publish:
-    name: Publish ${{ github.event.inputs.ami_id }} to Marketplace
+    name: Publish to Marketplace
     runs-on: ubuntu-22.04
     environment: production
     timeout-minutes: 15
 
     steps:
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC — for EC2 AMI share)
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -59,40 +66,30 @@ jobs:
           role-duration-seconds: 1800
           audience: sts.amazonaws.com
 
-      - name: Resolve Marketplace product entity ID
-        id: entity
-        env:
-          ENTITY_ID_SECRET: ${{ secrets.MARKETPLACE_ENTITY_ID }}
+      - name: Mask sensitive values
         run: |
-          if [[ -n "${ENTITY_ID_SECRET}" ]]; then
-            echo "entity_id=${ENTITY_ID_SECRET}" >> "$GITHUB_OUTPUT"
-            echo "Using entity ID from secret."
-          else
-            ENTITY_ID=$(aws marketplace-catalog list-entities \
-              --catalog AWSMarketplace \
-              --entity-type AmiProduct \
-              --region us-east-1 \
-              --query 'EntitySummaryList[0].EntityId' \
-              --output text)
-            if [[ -z "$ENTITY_ID" || "$ENTITY_ID" == "None" ]]; then
-              echo "ERROR: MARKETPLACE_ENTITY_ID secret not set and ListEntities failed."
-              exit 1
-            fi
-            echo "entity_id=${ENTITY_ID}" >> "$GITHUB_OUTPUT"
-            echo "Discovered entity via API: ${ENTITY_ID}"
-          fi
+          echo "::add-mask::${{ secrets.MARKETPLACE_SCANNER_ACCOUNT_ID }}"
+          echo "::add-mask::${{ secrets.MARKETPLACE_ENTITY_ID }}"
+          echo "::add-mask::${{ secrets.MARKETPLACE_ACCESS_ROLE_ARN }}"
+          echo "::add-mask::${{ github.event.inputs.ami_id }}"
 
       - name: Share AMI with Marketplace scanner account
         env:
           AMI_ID: ${{ github.event.inputs.ami_id }}
+          SCANNER_ACCOUNT: ${{ secrets.MARKETPLACE_SCANNER_ACCOUNT_ID }}
         run: |
-          # 679593333241 is the AWS Marketplace scanner account — must be granted
-          # launch permission before the Catalog API submission is accepted.
           aws ec2 modify-image-attribute \
             --image-id "${AMI_ID}" \
-            --launch-permission "Add=[{UserId=679593333241}]" \
+            --launch-permission "Add=[{UserId=${SCANNER_ACCOUNT}}]" \
             --region "${AWS_DEFAULT_REGION}"
-          echo "Shared ${AMI_ID} with Marketplace scanner account (679593333241)"
+          echo "Shared AMI with Marketplace scanner account"
+
+      - name: Configure AWS credentials (static — for Marketplace Catalog API)
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
+        with:
+          aws-access-key-id: ${{ secrets.MARKETPLACE_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.MARKETPLACE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Submit AddDeliveryOptions change set
         id: submit
@@ -101,7 +98,7 @@ jobs:
           VERSION_TAG: ${{ github.event.inputs.version_tag }}
           ARCH: ${{ github.event.inputs.architecture }}
           AMI_LABEL: ${{ github.event.inputs.ami_label }}
-          ENTITY_ID: ${{ steps.entity.outputs.entity_id }}
+          ENTITY_ID: ${{ secrets.MARKETPLACE_ENTITY_ID }}
           ACCESS_ROLE_ARN: ${{ secrets.MARKETPLACE_ACCESS_ROLE_ARN }}
         run: |
           export ARCH_DISPLAY
@@ -156,6 +153,7 @@ jobs:
                 'AmiDeliveryOptionDetails': {
                   'AmiSource': {
                     'AmiId': os.environ['AMI_ID'],
+                    'AccessRoleArn': os.environ['ACCESS_ROLE_ARN'],
                     'UserName': 'ubuntu',
                     'OperatingSystemName': 'UBUNTU',
                     'OperatingSystemVersion': '22.04',
@@ -193,8 +191,7 @@ jobs:
             --output text)
 
           echo "changeset_id=${CHANGE_SET_ID}" >> "$GITHUB_OUTPUT"
-          echo "Submitted change set: ${CHANGE_SET_ID}"
-          echo ""
+          echo "Submitted change set"
           echo "AWS review typically takes 1-3 business days."
           echo "Track at: https://aws.amazon.com/marketplace/management/products/"
 
