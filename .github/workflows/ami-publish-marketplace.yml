@@ -1,0 +1,219 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Bharath Kumar Gajjela
+#
+# ami-publish-marketplace.yml — publish any existing AMI to AWS Marketplace.
+#
+# Shares the AMI with the Marketplace scanner account, then submits an
+# AddDeliveryOptions change set to the existing product listing.
+# Does not build or test anything — pure publish step.
+
+name: Publish AMI to Marketplace
+
+on:
+  workflow_dispatch:
+    inputs:
+      ami_id:
+        description: 'AMI ID to publish (e.g. ami-07271f0387249fa08)'
+        required: true
+      version_tag:
+        description: 'Version title for Marketplace listing (e.g. 2026.06.25-arm64-base)'
+        required: true
+      architecture:
+        description: 'AMI architecture'
+        type: choice
+        default: arm64
+        options:
+          - arm64
+          - x86_64
+      ami_label:
+        description: 'Short label for the delivery option title (e.g. base, pro)'
+        type: choice
+        default: base
+        options:
+          - base
+          - pro
+      region:
+        description: 'AWS region'
+        default: us-east-1
+
+env:
+  AWS_DEFAULT_REGION: ${{ github.event.inputs.region || 'us-east-1' }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    name: Publish ${{ github.event.inputs.ami_id }} to Marketplace
+    runs-on: ubuntu-22.04
+    environment: production
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+          role-duration-seconds: 1800
+          audience: sts.amazonaws.com
+
+      - name: Discover Marketplace product entity ID
+        id: entity
+        run: |
+          ENTITY_ID=$(aws marketplace-catalog list-entities \
+            --catalog AWSMarketplace \
+            --entity-type AmiProduct \
+            --region us-east-1 \
+            --query 'EntitySummaryList[0].EntityId' \
+            --output text)
+          if [[ -z "$ENTITY_ID" || "$ENTITY_ID" == "None" ]]; then
+            echo "ERROR: No AmiProduct entity found in Marketplace catalog"
+            exit 1
+          fi
+          echo "entity_id=${ENTITY_ID}" >> "$GITHUB_OUTPUT"
+          echo "Found entity: ${ENTITY_ID}"
+
+      - name: Share AMI with Marketplace scanner account
+        env:
+          AMI_ID: ${{ github.event.inputs.ami_id }}
+        run: |
+          # 679593333241 is the AWS Marketplace scanner account — must be granted
+          # launch permission before the Catalog API submission is accepted.
+          aws ec2 modify-image-attribute \
+            --image-id "${AMI_ID}" \
+            --launch-permission "Add=[{UserId=679593333241}]" \
+            --region "${AWS_DEFAULT_REGION}"
+          echo "Shared ${AMI_ID} with Marketplace scanner account (679593333241)"
+
+      - name: Submit AddDeliveryOptions change set
+        id: submit
+        env:
+          AMI_ID: ${{ github.event.inputs.ami_id }}
+          VERSION_TAG: ${{ github.event.inputs.version_tag }}
+          ARCH: ${{ github.event.inputs.architecture }}
+          AMI_LABEL: ${{ github.event.inputs.ami_label }}
+          ENTITY_ID: ${{ steps.entity.outputs.entity_id }}
+        run: |
+          ARCH_DISPLAY=$([ "${ARCH}" = "arm64" ] && echo "ARM64/Graviton" || echo "x86_64")
+          INSTANCE_TYPE=$([ "${ARCH}" = "arm64" ] && echo "m7g.large" || echo "c6i.xlarge")
+
+          RELEASE_NOTES="${ARCH_DISPLAY} ${AMI_LABEL} AMI release of the Ubuntu 22.04 CPU Data Science and Machine Learning AMI.
+
+          This version includes:
+          - Python 3.11, 3.12, and 3.13
+          - Apache Spark and Java 21
+          - Julia, R, Go, Rust, and Node.js
+          - CIS-aligned hardening controls
+          - On-instance OpenSCAP and Trivy scan support
+
+          Customers are responsible for validating compatibility, runtime behavior, and performance for their own workloads before production use."
+
+          USAGE_INSTRUCTIONS="Launch the AMI in Amazon EC2 in us-east-1 using a ${ARCH_DISPLAY} instance type and connect as the ubuntu user with your EC2 key pair.
+
+          Basic checks:
+
+          - py311 -V && py312 -V && py313 -V
+          - spark-submit --version
+          - java -version
+          - julia -e \"println(VERSION)\"
+          - R --version
+          - go version
+          - rustc --version
+          - node --version
+
+          On-instance scan support:
+
+          - sudo ami-scan
+          - sudo ami-scan --cve
+          - sudo ami-scan --cis-level1
+          - sudo ami-scan --cis-level2
+
+          Customers are responsible for validating compatibility, runtime behavior, and performance for their own workloads before production use.
+
+          Restrict access to trusted source IPs whenever possible instead of leaving SSH open broadly"
+
+          DETAILS=$(python3 -c "
+          import json, sys, os
+          details = {
+            'Version': {
+              'VersionTitle': os.environ['VERSION_TAG'],
+              'ReleaseNotes': sys.argv[1]
+            },
+            'DeliveryOptions': [{
+              'Details': {
+                'AmiDeliveryOptionDetails': {
+                  'AmiSource': {
+                    'AmiId': os.environ['AMI_ID'],
+                    'AccessRoleArn': '',
+                    'UserName': 'ubuntu',
+                    'OperatingSystemName': 'UBUNTU',
+                    'OperatingSystemVersion': '22.04',
+                    'ScanningPort': 22
+                  },
+                  'UsageInstructions': sys.argv[2],
+                  'RecommendedInstanceType': os.environ['INSTANCE_TYPE'],
+                  'SecurityGroups': [{'Protocol': 'tcp', 'FromPort': 22, 'ToPort': 22, 'CidrIps': ['0.0.0.0/0']}],
+                  'Title': '(' + os.environ['ARCH_DISPLAY'] + ') Amazon Machine Image'
+                }
+              }
+            }]
+          }
+          print(json.dumps(details))
+          " "${RELEASE_NOTES}" "${USAGE_INSTRUCTIONS}")
+
+          CHANGE_SET=$(python3 -c "
+          import json, sys, os
+          change = [{
+            'ChangeType': 'AddDeliveryOptions',
+            'Entity': {
+              'Type': 'AmiProduct@1.0',
+              'Identifier': os.environ['ENTITY_ID']
+            },
+            'Details': sys.argv[1]
+          }]
+          print(json.dumps(change))
+          " "${DETAILS}")
+
+          CHANGE_SET_ID=$(aws marketplace-catalog start-change-set \
+            --catalog AWSMarketplace \
+            --change-set "${CHANGE_SET}" \
+            --change-set-name "${AMI_LABEL}-${ARCH}-${VERSION_TAG}-$(date +%s)" \
+            --region us-east-1 \
+            --query 'ChangeSetId' \
+            --output text)
+
+          echo "changeset_id=${CHANGE_SET_ID}" >> "$GITHUB_OUTPUT"
+          echo "Submitted change set: ${CHANGE_SET_ID}"
+          echo ""
+          echo "AWS review typically takes 1-3 business days."
+          echo "Track at: https://aws.amazon.com/marketplace/management/products/"
+
+      - name: Poll change set status
+        env:
+          CHANGE_SET_ID: ${{ steps.submit.outputs.changeset_id }}
+        run: |
+          for i in $(seq 1 10); do
+            STATUS=$(aws marketplace-catalog describe-change-set \
+              --catalog AWSMarketplace \
+              --change-set-id "${CHANGE_SET_ID}" \
+              --region us-east-1 \
+              --query 'Status' \
+              --output text)
+            echo "  [${i}] Change set status: ${STATUS}"
+            if [[ "${STATUS}" == "SUCCEEDED" ]]; then
+              echo "Change set applied successfully."
+              exit 0
+            elif [[ "${STATUS}" == "FAILED" || "${STATUS}" == "CANCELLED" ]]; then
+              echo "Change set ${STATUS}."
+              aws marketplace-catalog describe-change-set \
+                --catalog AWSMarketplace \
+                --change-set-id "${CHANGE_SET_ID}" \
+                --region us-east-1 \
+                --query 'ChangeSet[*].ErrorDetailList'
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Change set still APPLYING — AWS review in progress. Check Marketplace portal."
