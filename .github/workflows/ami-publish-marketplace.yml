@@ -84,14 +84,6 @@ jobs:
             --region "${AWS_DEFAULT_REGION}"
           echo "Shared AMI with Marketplace scanner account"
 
-      - name: Verify Marketplace credentials identity
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.MARKETPLACE_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MARKETPLACE_AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ""
-          AWS_DEFAULT_REGION: us-east-1
-        run: aws sts get-caller-identity
-
       - name: Submit AddDeliveryOptions change set
         id: submit
         env:
