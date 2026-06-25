@@ -59,21 +59,28 @@ jobs:
           role-duration-seconds: 1800
           audience: sts.amazonaws.com
 
-      - name: Discover Marketplace product entity ID
+      - name: Resolve Marketplace product entity ID
         id: entity
+        env:
+          ENTITY_ID_SECRET: ${{ secrets.MARKETPLACE_ENTITY_ID }}
         run: |
-          ENTITY_ID=$(aws marketplace-catalog list-entities \
-            --catalog AWSMarketplace \
-            --entity-type AmiProduct \
-            --region us-east-1 \
-            --query 'EntitySummaryList[0].EntityId' \
-            --output text)
-          if [[ -z "$ENTITY_ID" || "$ENTITY_ID" == "None" ]]; then
-            echo "ERROR: No AmiProduct entity found in Marketplace catalog"
-            exit 1
+          if [[ -n "${ENTITY_ID_SECRET}" ]]; then
+            echo "entity_id=${ENTITY_ID_SECRET}" >> "$GITHUB_OUTPUT"
+            echo "Using entity ID from secret."
+          else
+            ENTITY_ID=$(aws marketplace-catalog list-entities \
+              --catalog AWSMarketplace \
+              --entity-type AmiProduct \
+              --region us-east-1 \
+              --query 'EntitySummaryList[0].EntityId' \
+              --output text)
+            if [[ -z "$ENTITY_ID" || "$ENTITY_ID" == "None" ]]; then
+              echo "ERROR: MARKETPLACE_ENTITY_ID secret not set and ListEntities failed."
+              exit 1
+            fi
+            echo "entity_id=${ENTITY_ID}" >> "$GITHUB_OUTPUT"
+            echo "Discovered entity via API: ${ENTITY_ID}"
           fi
-          echo "entity_id=${ENTITY_ID}" >> "$GITHUB_OUTPUT"
-          echo "Found entity: ${ENTITY_ID}"
 
       - name: Share AMI with Marketplace scanner account
         env:
