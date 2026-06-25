@@ -98,6 +98,12 @@ source "amazon-ebs" "ubuntu_pro" {
     delete_on_termination = true
   }
 
+  # Pro AMI has a large volume with torch/tf wheels; extend snapshot wait to 45min.
+  aws_polling {
+    delay_seconds = 30
+    max_attempts  = 90
+  }
+
   ami_name        = "${local.base_name}-pro-{{timestamp}}"
   ami_description = "CPU DS/ML AMI (Pro) - Ubuntu 22.04, full DL stack (torch/tf/transformers), CIS-hardened"
   tags = { Name = "${local.base_name}-pro", Role = "dsml" }
@@ -177,6 +183,13 @@ source "amazon-ebs" "ubuntu_arm_pro" {
     volume_size           = var.root_volume_size
     volume_type           = "gp3"
     delete_on_termination = true
+  }
+
+  # Pro AMI has a 50GB volume with torch/tf wheels — snapshotting takes longer
+  # than the default 40×30s=20min window; extend to 90×30s=45min.
+  aws_polling {
+    delay_seconds = 30
+    max_attempts  = 90
   }
 
   ami_name        = "${local.arm_base_name}-pro-{{timestamp}}"
