@@ -102,6 +102,7 @@ jobs:
           ARCH: ${{ github.event.inputs.architecture }}
           AMI_LABEL: ${{ github.event.inputs.ami_label }}
           ENTITY_ID: ${{ steps.entity.outputs.entity_id }}
+          ACCESS_ROLE_ARN: ${{ secrets.MARKETPLACE_ACCESS_ROLE_ARN }}
         run: |
           export ARCH_DISPLAY
           export INSTANCE_TYPE
@@ -155,6 +156,7 @@ jobs:
                 'AmiDeliveryOptionDetails': {
                   'AmiSource': {
                     'AmiId': os.environ['AMI_ID'],
+                    'AccessRoleArn': os.environ['ACCESS_ROLE_ARN'],
                     'UserName': 'ubuntu',
                     'OperatingSystemName': 'UBUNTU',
                     'OperatingSystemVersion': '22.04',
