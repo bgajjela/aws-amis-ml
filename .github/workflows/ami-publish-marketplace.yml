@@ -103,6 +103,8 @@ jobs:
           AMI_LABEL: ${{ github.event.inputs.ami_label }}
           ENTITY_ID: ${{ steps.entity.outputs.entity_id }}
         run: |
+          export ARCH_DISPLAY
+          export INSTANCE_TYPE
           ARCH_DISPLAY=$([ "${ARCH}" = "arm64" ] && echo "ARM64/Graviton" || echo "x86_64")
           INSTANCE_TYPE=$([ "${ARCH}" = "arm64" ] && echo "m7g.large" || echo "c6i.xlarge")
 
