@@ -84,14 +84,6 @@ jobs:
             --region "${AWS_DEFAULT_REGION}"
           echo "Shared AMI with Marketplace scanner account"
 
-      - name: Configure AWS credentials (static — for Marketplace Catalog API)
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
-        with:
-          aws-access-key-id: ${{ secrets.MARKETPLACE_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.MARKETPLACE_AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-          unset-current-credentials: true
-
       - name: Submit AddDeliveryOptions change set
         id: submit
         env:
@@ -101,6 +93,10 @@ jobs:
           AMI_LABEL: ${{ github.event.inputs.ami_label }}
           ENTITY_ID: ${{ secrets.MARKETPLACE_ENTITY_ID }}
           ACCESS_ROLE_ARN: ${{ secrets.MARKETPLACE_ACCESS_ROLE_ARN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.MARKETPLACE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MARKETPLACE_AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_DEFAULT_REGION: us-east-1
         run: |
           export ARCH_DISPLAY
           export INSTANCE_TYPE
@@ -199,6 +195,10 @@ jobs:
       - name: Poll change set status
         env:
           CHANGE_SET_ID: ${{ steps.submit.outputs.changeset_id }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.MARKETPLACE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MARKETPLACE_AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ""
+          AWS_DEFAULT_REGION: us-east-1
         run: |
           for i in $(seq 1 10); do
             STATUS=$(aws marketplace-catalog describe-change-set \
