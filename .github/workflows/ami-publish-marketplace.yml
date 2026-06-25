@@ -156,7 +156,6 @@ jobs:
                 'AmiDeliveryOptionDetails': {
                   'AmiSource': {
                     'AmiId': os.environ['AMI_ID'],
-                    'AccessRoleArn': os.environ['ACCESS_ROLE_ARN'],
                     'UserName': 'ubuntu',
                     'OperatingSystemName': 'UBUNTU',
                     'OperatingSystemVersion': '22.04',
