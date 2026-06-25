@@ -846,10 +846,10 @@ jobs:
 
 # ── Publish to AWS Marketplace ───────────────────────────────────────────────
 # Submits the new ARM64 pro AMI as a new version on the existing Marketplace
-# product. Runs only when version_tag is set and the pro AMI passed tests.
-# Requires secret: MARKETPLACE_ENTITY_ID (prod-xxxxxxxxxxxx from Marketplace
-# Management Portal) and IAM permissions: aws-marketplace:StartChangeSet,
-# DescribeChangeSet, DescribeEntity.
+# product (prod-35b4a7w75gt6o). Runs only when version_tag is set and the
+# pro AMI passed tests. Requires IAM permissions on the CI role:
+# aws-marketplace:StartChangeSet, DescribeChangeSet, DescribeEntity, and
+# ec2:ModifyImageAttribute to share with the Marketplace scanner account.
   publish-marketplace:
     name: Publish ARM64 pro AMI to Marketplace
     needs: [tag-release, test-arm-pro]
@@ -875,64 +875,113 @@ jobs:
         env:
           PRO_AMI_ID: ${{ needs.test-arm-pro.outputs.ami_id }}
         run: |
-          # AWS Marketplace scanner account — required before Catalog API submission
+          # 679593333241 is the AWS Marketplace scanner account — must be granted
+          # launch permission before the Catalog API submission is accepted.
           aws ec2 modify-image-attribute \
             --image-id "${PRO_AMI_ID}" \
             --launch-permission "Add=[{UserId=679593333241}]" \
             --region "${AWS_DEFAULT_REGION}"
-          echo "Shared ${PRO_AMI_ID} with Marketplace scanner account"
+          echo "Shared ${PRO_AMI_ID} with Marketplace scanner account (679593333241)"
 
       - name: Submit new version to Marketplace Catalog API
+        id: submit
         env:
           PRO_AMI_ID: ${{ needs.test-arm-pro.outputs.ami_id }}
           VERSION_TAG: ${{ github.event.inputs.version_tag }}
-          ENTITY_ID: ${{ secrets.MARKETPLACE_ENTITY_ID }}
         run: |
-          CHANGE_SET=$(python3 - <<PYEOF
-          import json
-          change = {
-            "ChangeType": "AddDeliveryOptions",
-            "Entity": {
-              "Type": "AmiProduct@1.0",
-              "Identifier": "${ENTITY_ID}"
+          RELEASE_NOTES="ARM64/Graviton release of the Ubuntu 22.04 CPU Data Science and Machine Learning AMI.
+
+          This version includes:
+          - Python 3.11, 3.12, and 3.13
+          - Apache Spark and Java 21
+          - Julia, R, Go, Rust, and Node.js
+          - A curated pro image with PyTorch (CPU), TensorFlow, Transformers, XGBoost, LightGBM, and MLflow
+          - CIS-aligned hardening controls
+          - On-instance OpenSCAP and Trivy scan support
+
+          ARM64/Graviton instances offer ~20% lower compute cost vs x86 for CPU-based workloads.
+          Customers are responsible for validating compatibility, runtime behavior, and performance for their own workloads before production use."
+
+          USAGE_INSTRUCTIONS="Launch the AMI in Amazon EC2 in us-east-1 using an ARM64/Graviton instance type and connect as the ubuntu user with your EC2 key pair.
+
+          Basic checks:
+
+          - py311 -V && py312 -V && py313 -V
+          - spark-submit --version
+          - java -version
+          - julia -e \"println(VERSION)\"
+          - R --version
+          - go version
+          - rustc --version
+          - node --version
+
+          The pro image also includes a curated CPU ML stack. Example:
+
+          - py311 -c \"import torch, tensorflow, transformers, xgboost, lightgbm, mlflow; print('ok')\"
+
+          On-instance scan support:
+
+          - sudo ami-scan
+          - sudo ami-scan --cve
+          - sudo ami-scan --cis-level1
+          - sudo ami-scan --cis-level2
+
+          Customers are responsible for validating compatibility, runtime behavior, and performance for their own workloads before production use.
+
+          Restrict access to trusted source IPs whenever possible instead of leaving SSH open broadly"
+
+          DETAILS=$(python3 -c "
+          import json, sys
+          details = {
+            'Version': {
+              'VersionTitle': '${VERSION_TAG}-arm64-pro',
+              'ReleaseNotes': sys.argv[1]
             },
-            "Details": json.dumps({
-              "Version": {
-                "VersionTitle": "${VERSION_TAG}-ARM64",
-                "ReleaseNotes": "ARM64/Graviton support: same full DS/ML stack (PyTorch, TensorFlow, Transformers, XGBoost, LightGBM, MLflow, PySpark) on aarch64. ~20% lower compute cost vs x86."
-              },
-              "DeliveryOptions": [{
-                "Details": {
-                  "AmiDeliveryOptionDetails": {
-                    "AmiSource": {
-                      "AmiId": "${PRO_AMI_ID}",
-                      "AccessRoleArn": "",
-                      "UserName": "ubuntu",
-                      "OperatingSystemName": "UBUNTU",
-                      "OperatingSystemVersion": "22.04"
-                    },
-                    "UsageInstructions": "Launch the instance and connect via SSH as the 'ubuntu' user. Python environments are available as py311, py312, py313. See /etc/motd for quick start.",
-                    "RecommendedInstanceType": "m7g.large",
-                    "SecurityGroups": []
-                  }
+            'DeliveryOptions': [{
+              'Details': {
+                'AmiDeliveryOptionDetails': {
+                  'AmiSource': {
+                    'AmiId': '${PRO_AMI_ID}',
+                    'AccessRoleArn': '',
+                    'UserName': 'ubuntu',
+                    'OperatingSystemName': 'UBUNTU',
+                    'OperatingSystemVersion': '22.04',
+                    'ScanningPort': 22
+                  },
+                  'UsageInstructions': sys.argv[2],
+                  'RecommendedInstanceType': 'm7g.large',
+                  'SecurityGroups': [{'Protocol': 'tcp', 'FromPort': 22, 'ToPort': 22, 'CidrIps': ['0.0.0.0/0']}],
+                  'Title': '(ARM64/Graviton) Amazon Machine Image'
                 }
-              }]
-            })
+              }
+            }]
           }
-          print(json.dumps([change]))
-          PYEOF
-          )
+          print(json.dumps(details))
+          " "${RELEASE_NOTES}" "${USAGE_INSTRUCTIONS}")
+
+          CHANGE_SET=$(python3 -c "
+          import json, sys
+          change = [{
+            'ChangeType': 'AddDeliveryOptions',
+            'Entity': {
+              'Type': 'AmiProduct@1.0',
+              'Identifier': 'prod-35b4a7w75gt6o'
+            },
+            'Details': sys.argv[1]
+          }]
+          print(json.dumps(change))
+          " "${DETAILS}")
 
           CHANGE_SET_ID=$(aws marketplace-catalog start-change-set \
             --catalog AWSMarketplace \
             --change-set "${CHANGE_SET}" \
-            --change-set-name "ARM64-pro-${VERSION_TAG}-$(date +%s)" \
+            --change-set-name "arm64-pro-${VERSION_TAG}-$(date +%s)" \
             --region us-east-1 \
             --query 'ChangeSetId' \
             --output text)
 
-          echo "Submitted Marketplace change set: ${CHANGE_SET_ID}"
           echo "changeset_id=${CHANGE_SET_ID}" >> "$GITHUB_OUTPUT"
+          echo "Submitted change set: ${CHANGE_SET_ID}"
           echo ""
           echo "AWS review typically takes 1-3 business days."
           echo "Track at: https://aws.amazon.com/marketplace/management/products/"
