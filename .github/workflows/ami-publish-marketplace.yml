@@ -155,7 +155,6 @@ jobs:
                 'AmiDeliveryOptionDetails': {
                   'AmiSource': {
                     'AmiId': os.environ['AMI_ID'],
-                    'AccessRoleArn': '',
                     'UserName': 'ubuntu',
                     'OperatingSystemName': 'UBUNTU',
                     'OperatingSystemVersion': '22.04',
@@ -163,8 +162,7 @@ jobs:
                   },
                   'UsageInstructions': sys.argv[2],
                   'RecommendedInstanceType': os.environ['INSTANCE_TYPE'],
-                  'SecurityGroups': [{'Protocol': 'tcp', 'FromPort': 22, 'ToPort': 22, 'CidrIps': ['0.0.0.0/0']}],
-                  'Title': '(' + os.environ['ARCH_DISPLAY'] + ') Amazon Machine Image'
+                  'SecurityGroups': [{'IpProtocol': 'tcp', 'FromPort': 22, 'ToPort': 22, 'IpRanges': ['0.0.0.0/0']}]
                 }
               }
             }]
