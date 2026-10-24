@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+  echo "usage: agent-sandbox-exec COMMAND [ARG...]" >&2
+  exit 64
+fi
+
+if [[ "$(id -u)" -eq 0 ]]; then
+  echo "refusing to run an agent as root" >&2
+  exit 126
+fi
+
+exec setpriv \
+  --no-new-privs \
+  --inh-caps=-all \
+  --ambient-caps=-all \
+  --bounding-set=-all \
+  --reset-env \
+  -- "$@"
