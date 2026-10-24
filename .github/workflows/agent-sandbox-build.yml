@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0
+# Separate build path for the agent sandbox guest image.
+
+name: Agent Sandbox AMI Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ami_id:
+        description: 'Existing Ubuntu 22.04 CPU DS/ML AMI to harden'
+        required: true
+        type: string
+      region:
+        description: 'AWS region'
+        required: true
+        default: us-east-1
+        type: string
+      subnet_id:
+        description: 'Optional private subnet for the Packer builder'
+        required: false
+        default: ''
+        type: string
+      security_group_id:
+        description: 'Optional security group for the Packer builder'
+        required: false
+        default: ''
+        type: string
+      instance_type:
+        description: 'Builder instance type matching the source AMI architecture'
+        required: true
+        default: c6i.xlarge
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    name: Build and adversarially test sandbox AMI
+    runs-on: ubuntu-22.04
+    environment: production
+    timeout-minutes: 120
+    env:
+      AWS_DEFAULT_REGION: ${{ inputs.region }}
+      PACKER_LOG: '1'
+      PACKER_LOG_PATH: /tmp/agent-sandbox-packer.log
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v6.0.2
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b  # v6.2.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.region }}
+          role-duration-seconds: 7200
+          audience: sts.amazonaws.com
+
+      - name: Install Packer and ShellCheck
+        run: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update -q
+          sudo apt-get install -y packer shellcheck
+
+      - name: Validate sandbox sources
+        working-directory: sandbox
+        run: |
+          bash -n *.sh
+          shellcheck -S warning *.sh
+          packer init .
+          packer validate \
+            -var "base_ami_id=${{ inputs.base_ami_id }}" \
+            -var "region=${{ inputs.region }}" \
+            -var "instance_type=${{ inputs.instance_type }}" \
+            -var "subnet_id=${{ inputs.subnet_id }}" \
+            -var "security_group_id=${{ inputs.security_group_id }}" \
+            .
+
+      - name: Build sandbox AMI and run hostile-agent probes
+        working-directory: sandbox
+        run: |
+          packer build \
+            -var "base_ami_id=${{ inputs.base_ami_id }}" \
+            -var "region=${{ inputs.region }}" \
+            -var "instance_type=${{ inputs.instance_type }}" \
+            -var "subnet_id=${{ inputs.subnet_id }}" \
+            -var "security_group_id=${{ inputs.security_group_id }}" \
+            . 2>&1 | tee /tmp/agent-sandbox-build.log
+
+      - name: Upload build and adversarial evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1.6.2
+        with:
+          name: agent-sandbox-build-evidence
+          path: |
+            /tmp/agent-sandbox-build.log
+            /tmp/agent-sandbox-packer.log
+          if-no-files-found: warn
